@@ -1,0 +1,3346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Tesos CDA - Registro de Evaluaciones de Conducción</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS with Forms and Container Queries -->
+    <script src="tailwind.js"></script>
+    <!-- ===== PWA + arquitectura local-first (capa de integración) ===== -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#131415">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="js/esquema-default.js"></script>
+    <script src="js/aprobacion.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/sync.js"></script>
+    <!-- ================================================================ -->
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "var(--primary)",
+                        "primary-hover": "var(--primary-hover)",
+                        "secondary": "var(--secondary)",
+                        "surface-container": "var(--panel-bg)",
+                        "surface-container-high": "var(--input-bg)",
+                        "on-surface": "var(--on-surface)",
+                        "on-surface-variant": "var(--on-surface-variant)",
+                        "outline-variant": "var(--outline-variant)",
+                        "background": "var(--bg-app)",
+                    },
+                    fontFamily: {
+                        display: ["Outfit", "sans-serif"],
+                        body: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* CSS variables for light & dark neomorphic theme systems */
+        :root {
+            --primary: #799ced;
+            --primary-hover: #8aa4d6;
+            --primary-container: #d1fae5;
+            --secondary: #3b82f6;
+            --bg-app: #eef2f6;
+            --bg-gradient: linear-gradient(135deg, #eef2f6 0%, #dfe7f0 100%);
+            --panel-bg: #eef2f6;
+            --panel-border: rgba(255, 255, 255, 0.6);
+            --panel-shadow: 6px 6px 14px #d1d9e6, -6px -6px 14px #ffffff;
+            --panel-shadow-hover: 10px 10px 20px #cbd5e1, -10px -10px 20px #ffffff;
+            --panel-shadow-dark: #cbd5e1;
+            --panel-shadow-light: #ffffff;
+            --input-bg: #eef2f6;
+            --input-border: rgba(255, 255, 255, 0.4);
+            --input-shadow: inset 2px 2px 5px #d1d9e6, inset -3px -3px 6px #ffffff;
+            --input-focus-shadow: inset 1px 1px 3px #cbd5e1, inset -1px -1px 3px #ffffff, 0 0 0 2px rgba(121, 156, 237, 0.4);
+            --on-surface: #334155;
+            --on-surface-variant: #64748b;
+            --outline-variant: #cbd5e1;
+            --text-primary: #1e3a8a;
+            --btn-primary-bg: #9cb5eb;
+            --btn-primary-hover: #8aa4d6;
+            --btn-primary-shadow: 3px 3px 6px #b8c5d6, -3px -3px 6px #ffffff;
+            --btn-primary-active-shadow: inset 2px 2px 4px #7892c4, inset -2px -2px 4px #ffffff;
+        }
+
+        :root.dark {
+            --primary: #f5ab1a; /* Gold/yellow accent from image */
+            --primary-hover: #e09710;
+            --primary-container: #2d2619;
+            --secondary: #fbc02d;
+            --bg-app: #131415; /* Very dark charcoal/black from image */
+            --bg-gradient: linear-gradient(135deg, #131415 0%, #1e2022 100%);
+            --panel-bg: #1d1e20; /* Dark gray cards from image */
+            --panel-border: rgba(255, 255, 255, 0.05);
+            --panel-shadow: 6px 6px 14px #0b0c0c, -6px -6px 14px #2f3134; /* Light highlight is charcoal, dark shadow is pitch black */
+            --panel-shadow-hover: 10px 10px 20px #060606, -10px -10px 20px #373a3d;
+            --panel-shadow-dark: #0b0c0c;
+            --panel-shadow-light: #2f3134;
+            --input-bg: #151618;
+            --input-border: rgba(255, 255, 255, 0.02);
+            --input-shadow: inset 2px 2px 5px #0b0c0c, inset -2px -2px 5px #2f3134;
+            --input-focus-shadow: inset 1px 1px 3px #060606, inset -1px -1px 3px #2f3134, 0 0 0 2px rgba(245, 171, 26, 0.4);
+            --on-surface: #e2e8f0;
+            --on-surface-variant: #94a3b8;
+            --outline-variant: #2d3034;
+            --text-primary: #121313;
+            --btn-primary-bg: #f5ab1a;
+            --btn-primary-hover: #e09710;
+            --btn-primary-shadow: 3px 3px 6px #0b0c0c, -3px -3px 6px #2f3134;
+            --btn-primary-active-shadow: inset 2px 2px 4px #b87b0a, inset -2px -2px 4px #2f3134;
+        }
+
+        /* Hide scrollbars on ALL elements */
+        *::-webkit-scrollbar {
+            display: none;
+        }
+        * {
+            scrollbar-width: none;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: var(--bg-app);
+            color: var(--on-surface);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden !important;
+        }
+
+        /* Smooth transitions for theme switching on main elements */
+        body, header, .neomorphic-panel, .input-glass, .neomorphic-btn, .neomorphic-btn-primary, .wizard-step-node, .wizard-progress-fill, .tab-btn-active, .tab-btn-inactive, .neomorphic-inset-panel {
+            transition: background-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                        border-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                        color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                        box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* Abstract Premium Light Gradient Background */
+        .bg-light-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: var(--bg-gradient);
+            transition: background 0.3s ease;
+        }
+        
+        .bg-light-gradient::after {
+            content: '';
+            position: absolute;
+            top: -20%;
+            left: -20%;
+            width: 60%;
+            height: 60%;
+            background: radial-gradient(circle, rgba(121, 156, 237, 0.12) 0%, transparent 70%);
+            filter: blur(80px);
+        }
+
+        /* Neomorphic Outset Panels */
+        .neomorphic-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--panel-shadow);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .neomorphic-panel:hover {
+            box-shadow: var(--panel-shadow-hover);
+        }
+
+        /* Form Inputs (Inset) */
+        .input-glass {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--input-border) !important;
+            box-shadow: var(--input-shadow) !important;
+            color: var(--on-surface) !important;
+            transition: all 0.3s ease;
+        }
+        
+        .input-glass:focus {
+            box-shadow: var(--input-focus-shadow) !important;
+            border-color: rgba(121, 156, 237, 0.3) !important;
+            outline: none;
+        }
+        
+        .dark .input-glass:focus {
+            border-color: rgba(245, 171, 26, 0.3) !important;
+        }
+        
+        .input-glass::placeholder {
+            color: #64748b !important;
+            opacity: 0.85 !important;
+        }
+        
+        .dark .input-glass::placeholder {
+            color: #cbd5e1 !important;
+            opacity: 0.75 !important;
+        }
+
+        /* Floating profile avatar on top boundary of card */
+        #media-step-1 {
+            position: absolute;
+            top: -64px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 40;
+            transition: opacity 0.15s ease, filter 0.15s ease;
+        }
+
+        /* Maneuver Card and touch buttons design system */
+        .maneuver-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--panel-shadow);
+            transition: background-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        border-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .maneuver-card:hover {
+            box-shadow: var(--panel-shadow-hover);
+        }
+        
+        .maneuver-card-title {
+            color: var(--on-surface);
+            font-weight: 600;
+            font-size: 0.75rem; /* text-xs */
+            line-height: 1.25;
+            transition: color 0.4s ease;
+        }
+        .dark .maneuver-card-title {
+            color: #ffffff;
+        }
+
+        /* Maneuver Card states and background overlays */
+        .maneuver-card.is-approved {
+            background-color: rgba(46, 204, 113, 0.06) !important;
+            border-color: rgba(46, 204, 113, 0.2) !important;
+        }
+        .dark .maneuver-card.is-approved {
+            background-color: rgba(46, 204, 113, 0.12) !important;
+            border-color: rgba(46, 204, 113, 0.3) !important;
+        }
+        
+        .maneuver-card.is-failed {
+            background-color: rgba(231, 76, 60, 0.06) !important;
+            border-color: rgba(231, 76, 60, 0.2) !important;
+        }
+        .dark .maneuver-card.is-failed {
+            background-color: rgba(231, 76, 60, 0.12) !important;
+            border-color: rgba(231, 76, 60, 0.3) !important;
+        }
+
+        /* Large Touch Target Buttons (WCAG 48px compliance) */
+        .maneuver-btn {
+            width: 3rem !important; /* 48px */
+            height: 3rem !important; /* 48px */
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        background-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        border-color 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* Approved state details */
+        .maneuver-card.is-approved .btn-approve {
+            transform: scale(1.15);
+            opacity: 1;
+            background-color: #d1e7dd !important;
+            color: #0f5132 !important;
+            border-color: #a3cfbb !important;
+            box-shadow: inset 1px 1px 3px rgba(15,81,50,0.15), 2px 2px 4px var(--panel-shadow-dark);
+        }
+        .dark .maneuver-card.is-approved .btn-approve {
+            background-color: #113c23 !important;
+            color: #4edea3 !important;
+            border-color: #2e7d32 !important;
+        }
+        .maneuver-card.is-approved .btn-fail {
+            opacity: 0.2;
+        }
+
+        /* Failed state details */
+        .maneuver-card.is-failed .btn-fail {
+            transform: scale(1.15);
+            opacity: 1;
+            background-color: #f8d7da !important;
+            color: #842029 !important;
+            border-color: #f5c2c7 !important;
+            box-shadow: inset 1px 1px 3px rgba(132,32,41,0.15), 2px 2px 4px var(--panel-shadow-dark);
+        }
+        .dark .maneuver-card.is-failed .btn-fail {
+            background-color: #661c24 !important;
+            color: #ea868f !important;
+            border-color: #b71c1c !important;
+        }
+        .maneuver-card.is-failed .btn-approve {
+            opacity: 0.2;
+        }
+
+        /* Neomorphic Inset Panel */
+        .neomorphic-inset-panel {
+            background-color: var(--input-bg);
+            border: 1px solid var(--input-border);
+            box-shadow: var(--input-shadow);
+        }
+
+        /* Utility border class to prevent Tailwind fallback issues */
+        .border-panel-border {
+            border-color: var(--panel-border) !important;
+        }
+
+        /* Neomorphic Outset Card (protruding 3D shape) */
+        .neomorphic-card-outset {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--panel-shadow);
+            transition: background-color 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        border-color 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .neomorphic-card-outset:hover {
+            box-shadow: var(--panel-shadow-hover);
+        }
+
+        /* Dark mode overrides: remove borders to let neomorphic shadow do the 3D work */
+        .dark .neomorphic-card-outset,
+        .dark .maneuver-card,
+        .dark .neomorphic-inset-panel,
+        .dark .neomorphic-panel,
+        .dark #floating-menu {
+            border-color: transparent !important;
+        }
+
+        /* Neomorphic Floating Action Button Custom Style */
+        #fab-menu-btn {
+            box-shadow: 4px 4px 10px var(--panel-shadow-dark), -4px -4px 10px var(--panel-shadow-light) !important;
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+        }
+        .dark #fab-menu-btn {
+            border-color: transparent !important;
+            box-shadow: 4px 4px 10px var(--panel-shadow-dark), -4px -4px 10px var(--panel-shadow-light) !important;
+        }
+
+        /* Remove blue tap highlight on mobile browsers */
+        button, a, .neomorphic-switch-track, .view-switcher-container button {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Neomorphic Chip (Normal and Active States) */
+        .neomorphic-chip {
+            background-color: var(--panel-bg);
+            color: var(--on-surface-variant);
+            border: 1px solid var(--panel-border);
+            box-shadow: 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .neomorphic-chip:hover {
+            color: var(--on-surface);
+            box-shadow: 4px 4px 8px var(--panel-shadow-dark), -4px -4px 8px var(--panel-shadow-light);
+            transform: translateY(-1px);
+        }
+        .neomorphic-chip:active {
+            transform: translateY(0);
+        }
+        
+        /* Active Inset state */
+        .neomorphic-chip.is-active {
+            background-color: var(--panel-bg) !important;
+            box-shadow: inset 2px 2px 5px var(--panel-shadow-dark), inset -2px -2px 5px var(--panel-shadow-light) !important;
+            border-color: var(--outline-variant) !important;
+        }
+
+        /* Accent Colors on active chips */
+        #btn-chip-obs-1.is-active, #btn-chip-concl-1.is-active {
+            color: #10b981 !important; /* Green active */
+        }
+        #btn-chip-obs-2.is-active, #btn-chip-concl-2.is-active {
+            color: #f59e0b !important; /* Orange active */
+        }
+        
+        select.input-glass option {
+            background-color: var(--panel-bg);
+            color: var(--on-surface);
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 2px 2px 5px var(--panel-shadow-dark), -2px -2px 5px var(--panel-shadow-light);
+            border: 2px solid var(--panel-bg);
+            transition: transform 0.1s ease, background-color 0.3s ease;
+        }
+
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.2);
+        }
+        
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: var(--bg-app);
+            box-shadow: inset 1px 1px 3px var(--panel-shadow-dark), inset -1px -1px 3px var(--panel-shadow-light);
+            border-radius: 9999px;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Tab Switching */
+        .tab-btn-active {
+            background-color: var(--primary-container) !important;
+            color: var(--primary) !important;
+            box-shadow: inset 1px 1px 3px var(--panel-shadow-light), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light) !important;
+            border-color: var(--panel-border) !important;
+        }
+        
+        .dark .tab-btn-active {
+            color: var(--primary) !important;
+        }
+
+        .tab-btn-inactive {
+            color: var(--on-surface-variant);
+            border-color: transparent;
+        }
+        .tab-btn-inactive:hover {
+            background-color: rgba(121, 156, 237, 0.08);
+            color: var(--on-surface);
+        }
+        
+        .dark .tab-btn-inactive:hover {
+            background-color: rgba(245, 171, 26, 0.08);
+        }
+
+        /* Section Heading Divider */
+        .heading-divider {
+            position: relative;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .heading-divider::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 32px;
+            height: 2.5px;
+            background-color: var(--primary);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(121, 156, 237, 0.4);
+            transition: background-color 0.3s ease;
+        }
+        
+        .dark .heading-divider::after {
+            box-shadow: 0 0 8px rgba(245, 171, 26, 0.4);
+        }
+        
+        .heading-divider-blue::after {
+            background-color: var(--secondary);
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Preview Sheets Simulation */
+        .preview-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .preview-page {
+            width: 800px;
+            min-width: 800px;
+            min-height: 1128px; /* A4 Ratio */
+            background-color: #ffffff;
+            color: #1e293b;
+            box-shadow: 8px 8px 24px rgba(163, 177, 198, 0.4), -8px -8px 24px #ffffff;
+            border: 1px solid #e2e8f0;
+            padding: 50px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .dark .preview-page {
+            box-shadow: 8px 8px 24px rgba(0, 0, 0, 0.5), -8px -8px 24px rgba(255, 255, 255, 0.02);
+        }
+
+        /* Focus highlight */
+        *:focus-visible {
+            outline: none !important;
+        }
+        
+        /* Smooth grid columns transition on PC using flexbox layout shift */
+        @media (min-width: 1024px) {
+            .grid-split-container {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: start !important;
+                gap: 0 !important;
+                width: 100% !important;
+                transition: gap 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            }
+            .grid-split-container.split-active {
+                gap: 2rem !important;
+            }
+            
+            #form-container {
+                width: 100% !important;
+                max-width: 48rem !important; /* centered by default, matching user preference */
+                margin-left: auto !important;
+                margin-right: auto !important;
+                flex-shrink: 0 !important;
+                transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                            max-width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                            margin 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            }
+            
+            .grid-split-container.split-active #form-container {
+                width: 42% !important;
+                max-width: 42% !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+            
+            #preview-container {
+                width: 0 !important;
+                max-width: 0 !important;
+                opacity: 0 !important;
+                overflow: hidden !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+                flex-shrink: 0 !important;
+                transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                            max-width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                            opacity 0.4s ease, 
+                            visibility 0.4s ease;
+            }
+            
+            .grid-split-container.split-active #preview-container {
+                width: 58% !important;
+                max-width: 58% !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+                
+                /* Restore sticky scroll container logic for PDF navigation */
+                position: sticky !important;
+                top: 96px !important;
+                max-height: calc(100vh - 140px) !important;
+                overflow-y: auto !important;
+                padding-bottom: 20px !important;
+            }
+        }
+
+        /* View Switcher sliding pill */
+        .view-switcher-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .view-switcher-pill {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            left: 4px;
+            width: 110px;
+            background-color: var(--primary-container);
+            box-shadow: inset 1px 1px 3px var(--panel-shadow-light), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+            border: 1px solid var(--panel-border);
+            border-radius: 9999px;
+            transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 1;
+        }
+        
+        @media (min-width: 640px) {
+            .view-switcher-pill {
+                width: 130px;
+            }
+        }
+
+        /* Wizard styles */
+        .wizard-step {
+            transition: opacity 0.25s ease-in-out;
+        }
+        
+        .wizard-step-node {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            background: var(--panel-bg);
+            box-shadow: 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+            color: var(--on-surface-variant);
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .wizard-step-node.active {
+            background: var(--primary);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 3px rgba(121, 156, 237, 0.25), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+        }
+        
+        .dark .wizard-step-node.active {
+            box-shadow: 0 0 0 3px rgba(245, 171, 26, 0.25), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+        }
+        
+        .wizard-step-node.completed {
+            background: #e2f5ec;
+            color: #0f5132;
+            box-shadow: inset 1px 1px 3px rgba(255,255,255,0.6), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+        }
+        
+        .dark .wizard-step-node.completed {
+            background: #113c23;
+            color: #4edea3;
+            box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+        }
+        
+        .wizard-progress-bar {
+            height: 4px;
+            background: var(--outline-variant);
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.05);
+            border-radius: 2px;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 0;
+            right: 0;
+            z-index: 1;
+        }
+        
+        .wizard-progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* Neomorphic Buttons */
+        .neomorphic-btn {
+            background-color: var(--panel-bg);
+            color: var(--on-surface-variant);
+            border: 1px solid var(--panel-border);
+            box-shadow: 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+            transition: all 0.2s ease;
+        }
+        
+        .neomorphic-btn:hover {
+            color: var(--on-surface);
+            box-shadow: 4px 4px 8px var(--panel-shadow-dark), -4px -4px 8px var(--panel-shadow-light);
+            transform: translateY(-1px);
+        }
+        
+        .neomorphic-btn:active {
+            box-shadow: inset 2px 2px 4px var(--panel-shadow-dark), inset -2px -2px 4px var(--panel-shadow-light);
+            transform: translateY(0);
+        }
+        
+        .neomorphic-btn-primary {
+            background-color: var(--btn-primary-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--btn-primary-shadow);
+            font-weight: 700;
+        }
+        
+        .neomorphic-btn-primary:hover {
+            background-color: var(--primary-hover);
+            color: var(--text-primary);
+            box-shadow: var(--btn-primary-shadow);
+        }
+        
+        .neomorphic-btn-primary:active {
+            box-shadow: var(--btn-primary-active-shadow);
+        }
+
+        /* Custom Switch */
+        .neomorphic-switch-track {
+            background: var(--panel-bg);
+            box-shadow: inset 2px 2px 5px var(--panel-shadow-dark), inset -2px -2px 5px var(--panel-shadow-light);
+            border-radius: 100px;
+            width: 52px;
+            height: 28px;
+            position: relative;
+            cursor: pointer;
+        }
+        .neomorphic-switch-thumb {
+            width: 22px;
+            height: 22px;
+            background: var(--panel-bg);
+            box-shadow: 2px 2px 5px var(--panel-shadow-dark), -2px -2px 5px var(--panel-shadow-light);
+            border-radius: 50%;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #eab308;
+            font-size: 14px;
+        }
+
+        /* Responsive Layouts */
+        @media (max-width: 1023px) {
+            main {
+                margin-top: 8.5rem !important;
+            }
+            .preview-page {
+                transform: scale(0.9);
+                transform-origin: top center;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            main {
+                max-width: 1440px;
+            }
+            #preview-container {
+                position: sticky;
+                top: 88px;
+                max-height: calc(100vh - 120px);
+                overflow-y: auto;
+                padding-bottom: 20px;
+            }
+        }
+
+        /* Print media styling */
+        @media print {
+            header, .fixed, #qr-modal, #search-modal {
+                display: none !important;
+            }
+            #form-container {
+                display: none !important;
+            }
+            main {
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: none !important;
+                background: #ffffff !important;
+            }
+            main > div.grid-split-container {
+                display: block !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            #preview-container {
+                display: block !important;
+                position: static !important;
+                max-height: none !important;
+                overflow: visible !important;
+                width: 100% !important;
+                max-width: none !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+                padding: 0 !important;
+            }
+            #preview-view {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0 !important;
+                padding: 0 !important;
+            }
+            .preview-wrapper {
+                display: block !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                height: auto !important;
+            }
+            .preview-page {
+                width: 100% !important;
+                min-width: 0 !important;
+                min-height: auto !important;
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 12mm !important;
+                transform: none !important;
+                page-break-after: always;
+                break-after: page;
+            }
+            .preview-wrapper:last-of-type .preview-page {
+                page-break-after: auto;
+                break-after: auto;
+            }
+            .preview-page * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body class="font-body min-h-screen pb-32">
+    <!-- Background Blur Layer -->
+    <div class="bg-light-gradient"></div>
+
+    <!-- Header Navigation -->
+    <header class="bg-background/80 backdrop-blur-md border-b border-outline-variant/50 shadow-sm dark:shadow-none fixed top-0 w-full z-50 transition-all duration-300">
+        <div class="max-w-container-max mx-auto px-4 md:px-6 py-3 md:py-4 flex justify-between items-center gap-4">
+            
+            <!-- Branding (Left) -->
+            <div class="flex items-center gap-2 md:gap-3 order-1 w-auto">
+                <span class="material-symbols-outlined text-primary text-2xl md:text-3xl font-semibold">shield_with_heart</span>
+                <h1 class="font-display text-xl md:text-2xl text-on-surface tracking-tighter font-bold">Tesos <span class="text-primary">CDA</span></h1>
+            </div>
+
+            <!-- Record Navigation Arrows & View Switcher (Middle) -->
+            <div class="flex items-center gap-3 order-2">
+                <!-- Navigation Arrows -->
+                <div class="flex items-center bg-surface-container p-1 rounded-full shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] border border-white/40 dark:border-outline-variant">
+                    <button onclick="navigateRecords(-1)" type="button" class="w-12 h-12 md:w-8 md:h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" title="Registro Anterior">
+                        <span class="material-symbols-outlined text-lg font-bold">chevron_left</span>
+                    </button>
+                    <span id="record-nav-indicator" class="text-[10px] font-extrabold text-primary px-2 min-w-[55px] text-center select-none uppercase tracking-wider">NUEVO</span>
+                    <button onclick="navigateRecords(1)" type="button" class="w-12 h-12 md:w-8 md:h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" title="Registro Siguiente">
+                        <span class="material-symbols-outlined text-lg font-bold">chevron_right</span>
+                    </button>
+                </div>
+
+                <!-- View Tabs Switches (Sliding Pill) - Desktop Only -->
+                <div class="view-switcher-container bg-surface-container p-1 rounded-full shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] border border-white/40 dark:border-outline-variant relative select-none hidden md:flex">
+                    <div id="view-tab-pill" class="view-switcher-pill"></div>
+                    <button id="view-form-btn" onclick="switchView('form')" type="button" class="relative z-10 w-[110px] sm:w-[130px] py-1.5 sm:py-2 text-xs md:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 justify-center text-primary">
+                        <span class="material-symbols-outlined text-[16px] md:text-lg">edit_document</span>
+                        Formulario
+                    </button>
+                    <button id="view-preview-btn" onclick="switchView('preview')" type="button" class="relative z-10 w-[110px] sm:w-[130px] py-1.5 sm:py-2 text-xs md:text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2 justify-center text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[16px] md:text-lg">visibility</span>
+                        Vista Previa
+                    </button>
+                </div>
+            </div>
+
+            <!-- Header Actions (Right - Hidden on mobile) -->
+            <div class="hidden lg:flex items-center justify-end gap-2 md:gap-3 order-3 w-auto">
+                <button onclick="generateQR()" class="neomorphic-btn px-3 md:px-4 py-2 rounded-full transition-all flex items-center gap-1.5 md:gap-2 text-primary font-semibold text-xs md:text-sm">
+                    <span class="material-symbols-outlined text-[16px] md:text-lg">qr_code_scanner</span>
+                    <span>Conectar</span>
+                </button>
+                <button onclick="openSearch()" class="neomorphic-btn px-3 md:px-4 py-2 rounded-full transition-all flex items-center gap-1.5 md:gap-2 text-secondary font-semibold text-xs md:text-sm">
+                    <span class="material-symbols-outlined text-[16px] md:text-lg">search</span>
+                    <span>Buscar</span>
+                </button>
+                <button onclick="nuevoRegistro()" class="neomorphic-btn px-3 md:px-4 py-2 rounded-full transition-all flex items-center gap-1.5 md:gap-2 text-on-surface-variant font-semibold text-xs md:text-sm">
+                    <span class="material-symbols-outlined text-[16px] md:text-lg">restart_alt</span>
+                    <span>Nuevo</span>
+                </button>
+                <!-- Theme Toggle Button -->
+                <button id="theme-toggle-btn" onclick="toggleTheme()" class="neomorphic-btn w-10 h-10 rounded-full flex items-center justify-center text-amber-500 font-semibold" title="Cambiar Tema">
+                    <span class="material-symbols-outlined text-lg" id="theme-icon">dark_mode</span>
+                </button>
+                <div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant shadow-inner">
+                    <div class="w-full h-full bg-surface-container flex items-center justify-center text-primary font-bold shadow-[inset_1px_1px_3px_#cbd5e1]">
+                        <span class="material-symbols-outlined">engineering</span>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </header>
+
+    <!-- ========================================================================= -->
+    <!-- QR MODAL -->
+    <!-- ========================================================================= -->
+    <div id="qr-modal" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" onclick="closeQR()"></div>
+        <div class="neomorphic-panel rounded-3xl w-full max-w-sm relative z-10 flex flex-col items-center text-center p-8 border-white/60">
+            <h2 class="font-display text-2xl text-on-surface font-bold mb-2">Conectar Móvil</h2>
+            <p class="text-sm text-on-surface-variant mb-6">Escanea este código con la cámara de tu celular para abrir la app.</p>
+            <div class="bg-white p-4 rounded-2xl shadow-[8px_8px_16px_rgba(163,177,198,0.3),_-8px_-8px_16px_#ffffff] mb-6">
+                <img id="qr-image" src="" alt="QR Code" class="w-48 h-48 object-contain">
+            </div>
+            <p id="qr-url-text" class="text-xs text-on-surface-variant/70 font-mono break-all mb-6 max-w-full px-4"></p>
+            <button onclick="closeQR()" class="w-full neomorphic-btn font-bold py-3 rounded-xl transition-all">
+                Cerrar
+            </button>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- SEARCH / EDIT MODAL -->
+    <!-- ========================================================================= -->
+    <div id="search-modal" class="hidden fixed inset-0 z-[60] flex items-start justify-center p-4 sm:p-10">
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" onclick="closeSearch()"></div>
+        <div class="neomorphic-panel rounded-2xl w-full max-w-2xl relative z-10 mt-16 flex flex-col max-h-[75vh]">
+            <div class="p-6 border-b border-outline-variant/50 flex items-center gap-3">
+                <span class="material-symbols-outlined text-secondary">search</span>
+                <input id="search-input" oninput="filterRecords()" type="text" placeholder="Buscar por nombre, cédula, empresa o ID..." class="input-glass rounded-xl p-3 flex-1 text-on-surface font-body">
+                <button onclick="closeSearch()" class="w-10 h-10 rounded-full neomorphic-btn flex items-center justify-center text-on-surface-variant">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div id="search-results" class="overflow-y-auto p-3 flex flex-col gap-2">
+                <!-- Filled by JS -->
+            </div>
+            <div class="p-3 border-t border-outline-variant/50 text-center text-xs text-on-surface-variant font-medium">
+                <span id="search-count">0</span> registros · haz clic en uno para editarlo
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Container -->
+    <main class="max-w-container-max mx-auto px-4 sm:px-6 mt-40">
+
+
+
+        <!-- SPLIT CONTAINER -->
+        <div id="grid-split-container" class="grid-split-container grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-16">
+            
+            <!-- LEFT PANEL: WIZARD FORM -->
+            <div id="form-container" class="col-span-12 flex flex-col gap-6">
+                
+                <!-- Wizard Card with steps -->
+                <div class="neomorphic-panel rounded-3xl p-5 sm:p-6 flex flex-col gap-6 w-full relative">
+                    
+                    <!-- Spacer for floating avatar (Step 1 only) -->
+                    <div id="wizard-avatar-spacer" class="h-16 transition-all duration-300"></div>
+
+                    <!-- Wizard Header: Progress Indicator -->
+                    <div class="relative flex items-center justify-between mb-1 px-2">
+                        <!-- Step indicators -->
+                        <button onclick="goToStep(1)" type="button" class="wizard-step-node active" id="step-node-1">1</button>
+                        <button onclick="goToStep(2)" type="button" class="wizard-step-node" id="step-node-2">2</button>
+                        <button onclick="goToStep(3)" type="button" class="wizard-step-node" id="step-node-3">3</button>
+                        <button onclick="goToStep(4)" type="button" class="wizard-step-node" id="step-node-4">4</button>
+                        <div class="wizard-progress-bar">
+                            <div id="wizard-progress-fill" class="wizard-progress-fill"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Labels for steps -->
+                    <div class="flex justify-between text-[10px] sm:text-xs font-semibold text-on-surface-variant dark:text-slate-200 px-1 border-b border-outline-variant/40 dark:border-outline-variant pb-4 mb-1">
+                        <span class="text-left w-16">Datos</span>
+                        <span class="text-center w-16">Teoría</span>
+                        <span class="text-center w-16">Práctica</span>
+                        <span class="text-right w-16">Notas</span>
+                    </div>
+
+                    <!-- Contextual Media Slot (Top of Wizard) -->
+                    <div id="wizard-media-slot" class="w-full flex justify-center py-2 transition-all">
+                        <!-- Step 1 Media: Profile Photo (1:1) -->
+                        <div id="media-step-1" class="flex flex-col items-center">
+                            <div onclick="selectImage('profile')" class="w-32 h-32 rounded-full border border-dashed border-outline-variant flex flex-col items-center justify-center bg-surface-container cursor-pointer hover:border-primary hover:bg-[#cbd5e1]/10 transition-all shadow-inner group relative overflow-hidden">
+                                <img id="img-profile-preview" class="hidden w-full h-full object-cover">
+                                <div id="img-profile-placeholder" class="flex flex-col items-center justify-center text-center">
+                                    <span class="material-symbols-outlined text-2xl text-on-surface-variant group-hover:text-primary mb-1">add_a_photo</span>
+                                    <span class="text-[10px] text-on-surface-variant group-hover:text-primary font-semibold">Foto Perfil (1:1)</span>
+                                </div>
+                            </div>
+                            <span class="text-[10px] text-on-surface-variant mt-2 font-semibold">Toca la foto para subir o cambiar</span>
+                        </div>
+
+                        <!-- Step 2 Media: Theory Gauge / Dashboard -->
+                        <div id="media-step-2" class="hidden flex-col items-center justify-center w-full px-6 py-2">
+                            <div class="neomorphic-card-outset flex items-center gap-4 w-full p-4 rounded-2xl transition-all duration-300">
+                                <div class="w-16 h-16 rounded-full bg-surface-container border border-outline-variant/10 shadow-[inset_2px_2px_4px_var(--panel-shadow-dark),_inset_-2px_-2px_4px_var(--panel-shadow-light)] flex flex-col items-center justify-center text-primary font-bold transition-all duration-300">
+                                    <span id="wizard-theory-avg" class="font-display font-extrabold text-lg leading-none">100%</span>
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="text-sm font-bold text-on-surface">Resultado Teórico</h4>
+                                    <p id="wizard-theory-status" class="text-xs font-semibold text-green-600 uppercase mt-0.5">APROBADO</p>
+                                    <div class="w-full bg-background h-2 rounded-full mt-2 overflow-hidden shadow-[inset_1px_1px_3px_rgba(0,0,0,0.2)] transition-all duration-300">
+                                        <div id="wizard-theory-progress" class="bg-[#10b981] h-full rounded-full transition-all" style="width: 100%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 3 Media: 4 Evidence Slots (Grid 3:5) -->
+                        <div id="media-step-3" class="hidden flex-col items-center w-full px-4">
+                            <div class="grid grid-cols-4 gap-3 w-full">
+                                <div onclick="selectImage('ev1')" class="aspect-[3/5] rounded-xl border border-dashed border-outline-variant flex flex-col items-center justify-center bg-surface-container cursor-pointer hover:border-primary hover:bg-[#cbd5e1]/10 transition-all p-1 text-center group shadow-inner relative overflow-hidden">
+                                    <img id="img-ev1-preview" class="hidden w-full h-full object-cover rounded-lg">
+                                    <div id="img-ev1-placeholder" class="flex flex-col items-center justify-center text-center">
+                                        <span class="material-symbols-outlined text-lg text-on-surface-variant group-hover:text-primary mb-1">photo_camera</span>
+                                        <span class="text-[9px] text-on-surface-variant group-hover:text-primary font-medium leading-none">Evidencia 1</span>
+                                    </div>
+                                </div>
+                                
+                                <div onclick="selectImage('ev2')" class="aspect-[3/5] rounded-xl border border-dashed border-outline-variant flex flex-col items-center justify-center bg-surface-container cursor-pointer hover:border-primary hover:bg-[#cbd5e1]/10 transition-all p-1 text-center group shadow-inner relative overflow-hidden">
+                                    <img id="img-ev2-preview" class="hidden w-full h-full object-cover rounded-lg">
+                                    <div id="img-ev2-placeholder" class="flex flex-col items-center justify-center text-center">
+                                        <span class="material-symbols-outlined text-lg text-on-surface-variant group-hover:text-primary mb-1">photo_camera</span>
+                                        <span class="text-[9px] text-on-surface-variant group-hover:text-primary font-medium leading-none">Evidencia 2</span>
+                                    </div>
+                                </div>
+                                
+                                <div onclick="selectImage('ev3')" class="aspect-[3/5] rounded-xl border border-dashed border-outline-variant flex flex-col items-center justify-center bg-surface-container cursor-pointer hover:border-primary hover:bg-[#cbd5e1]/10 transition-all p-1 text-center group shadow-inner relative overflow-hidden">
+                                    <img id="img-ev3-preview" class="hidden w-full h-full object-cover rounded-lg">
+                                    <div id="img-ev3-placeholder" class="flex flex-col items-center justify-center text-center">
+                                        <span class="material-symbols-outlined text-lg text-on-surface-variant group-hover:text-primary mb-1">photo_camera</span>
+                                        <span class="text-[9px] text-on-surface-variant group-hover:text-primary font-medium leading-none">Evidencia 3</span>
+                                    </div>
+                                </div>
+                                
+                                <div onclick="selectImage('ev4')" class="aspect-[3/5] rounded-xl border border-dashed border-outline-variant flex flex-col items-center justify-center bg-surface-container cursor-pointer hover:border-primary hover:bg-[#cbd5e1]/10 transition-all p-1 text-center group shadow-inner relative overflow-hidden">
+                                    <img id="img-ev4-preview" class="hidden w-full h-full object-cover rounded-lg">
+                                    <div id="img-ev4-placeholder" class="flex flex-col items-center justify-center text-center">
+                                        <span class="material-symbols-outlined text-lg text-on-surface-variant group-hover:text-primary mb-1">photo_camera</span>
+                                        <span class="text-[9px] text-on-surface-variant group-hover:text-primary font-medium leading-none">Evidencia 4</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="text-[10px] text-on-surface-variant mt-2 font-semibold">Toca cualquier cuadro para subir evidencia</span>
+                        </div>
+
+                        <!-- Step 4 Media: Quick overall status summary -->
+                        <div id="media-step-4" class="hidden flex-col items-center w-full px-4">
+                            <div class="grid grid-cols-2 gap-4 w-full text-center text-xs">
+                                <div class="neomorphic-inset-panel p-3 rounded-xl">
+                                    <span class="text-on-surface-variant dark:text-slate-200 font-semibold block text-[10px] uppercase tracking-wider">Nota Teórica</span>
+                                    <span id="wizard-summary-theory" class="text-sm font-extrabold text-primary block mt-1">100%</span>
+                                </div>
+                                <div class="neomorphic-inset-panel p-3 rounded-xl">
+                                    <span class="text-on-surface-variant dark:text-slate-200 font-semibold block text-[10px] uppercase tracking-wider">Nota Práctica</span>
+                                    <span id="wizard-summary-practice" class="text-sm font-extrabold text-green-600 block mt-1">APROBADO</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Wizard Steps Content -->
+                    <div id="wizard-steps-container">
+                        
+                        <!-- Step 1: Datos del Participante -->
+                        <div id="step-1" class="wizard-step flex flex-col gap-5">
+                            <h2 class="font-display text-lg text-on-surface font-bold flex items-center gap-2 border-b border-outline-variant/40 pb-2">
+                                <span class="material-symbols-outlined text-primary text-xl">person</span>
+                                Datos del Participante
+                            </h2>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                                <!-- Nombre -->
+                                <div class="flex flex-col gap-1.5 sm:col-span-2">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider flex items-center gap-1">Nombre Completo</label>
+                                    <input id="part-nombre" oninput="onNombreInput()" class="input-glass rounded-xl p-3 text-on-surface font-body" placeholder="Juan Pérez" type="text">
+                                    <div id="name-change-warning" class="hidden mt-1 flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-800 text-xs leading-snug">
+                                        <span class="material-symbols-outlined text-base flex-shrink-0">warning</span>
+                                        <span><strong>Estás cambiando el nombre.</strong> Las fotos guardadas se renombrarán automáticamente al guardar.</span>
+                                    </div>
+                                </div>
+                                <!-- Cédula -->
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Cédula</label>
+                                    <input id="part-cedula" oninput="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body" placeholder="100000000" type="text" onkeypress="return isNumberKey(event)">
+                                </div>
+                                <!-- Empresa -->
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Empresa</label>
+                                    <select id="part-empresa" onchange="handleEmpresaChange()" class="input-glass rounded-xl p-3 text-on-surface font-body cursor-pointer appearance-none">
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                </div>
+                                <!-- Ciudad -->
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Ciudad</label>
+                                    <input id="part-ciudad" readonly class="bg-[#cbd5e1]/10 border border-white/40 rounded-xl p-3 text-on-surface-variant/70 font-body cursor-not-allowed" type="text" placeholder="Autocompletada">
+                                </div>
+                                <!-- Categoría -->
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Categorías</label>
+                                    <input id="part-categorias" oninput="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body" placeholder="A2, B1, etc." type="text">
+                                </div>
+                                <!-- Contacto -->
+                                <div class="flex flex-col gap-1.5 sm:col-span-2">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Teléfono / Contacto</label>
+                                    <input id="part-contacto" oninput="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body" placeholder="Celular" type="text" onkeypress="return isNumberKey(event)">
+                                </div>
+                                <!-- Fecha de Prueba -->
+                                <div class="flex flex-col gap-1.5 sm:col-span-2">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Fecha de Prueba</label>
+                                    <input id="part-fecha" onchange="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body w-full" type="date">
+                                </div>
+                                <!-- Vigencia A2 -->
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Vigencia A2</label>
+                                    <input id="part-vigencia-a2" onchange="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body" type="date">
+                                </div>
+                                <!-- Vigencia B1 -->
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Vigencia B1</label>
+                                    <input id="part-vigencia-b1" onchange="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body" type="date">
+                                </div>
+                            </div>
+                            <!-- Estado de Multas -->
+                            <div class="neomorphic-card-outset mt-2 flex items-center justify-between p-3.5 rounded-2xl">
+                                <label class="font-semibold text-xs text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-primary text-base">gavel</span> Multas en Tránsito
+                                </label>
+                                <select id="part-multas" onchange="updatePreviewData()" class="input-glass rounded-lg py-1.5 px-3 text-sm text-on-surface font-semibold cursor-pointer select-none">
+                                    <option value="No">No</option>
+                                    <option value="Sí">Sí</option>
+                                    <option value="Acuerdo de pago">Acuerdo de pago</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 2: Evaluación Teórica -->
+                        <div id="step-2" class="wizard-step flex flex-col gap-5 hidden">
+                            <h2 class="font-display text-lg text-on-surface font-bold flex items-center gap-2 border-b border-outline-variant/40 pb-2">
+                                <span class="material-symbols-outlined text-primary text-xl">menu_book</span>
+                                Evaluación Teórica
+                            </h2>
+                            <div class="flex flex-col gap-5">
+                                <!-- Técnicas de Conducción -->
+                                <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
+                                    <div class="flex justify-between items-center">
+                                        <label class="text-sm text-on-surface font-medium">Técnicas de Conducción</label>
+                                        <span id="val-teoricas-1" class="font-display text-lg text-primary font-bold">10.0</span>
+                                    </div>
+                                    <input id="score-teoricas-1" oninput="handleRangeChange(1)" class="w-full" max="10" min="0" step="0.5" type="range" value="10">
+                                </div>
+                                <!-- Normatividad -->
+                                <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
+                                    <div class="flex justify-between items-center">
+                                        <label class="text-sm text-on-surface font-medium">Normatividad</label>
+                                        <span id="val-teoricas-2" class="font-display text-lg text-primary font-bold">10.0</span>
+                                    </div>
+                                    <input id="score-teoricas-2" oninput="handleRangeChange(2)" class="w-full" max="10" min="0" step="0.5" type="range" value="10">
+                                </div>
+                                <!-- Elementos EPP -->
+                                <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
+                                    <div class="flex justify-between items-center">
+                                        <label class="text-sm text-on-surface font-medium">Elementos EPP <span class="text-on-surface-variant text-xs">(máx 5)</span></label>
+                                        <span id="val-teoricas-3" class="font-display text-lg text-primary font-bold">5.0</span>
+                                    </div>
+                                    <input id="score-teoricas-3" oninput="handleRangeChange(3)" class="w-full" max="5" min="0" step="0.5" type="range" value="5">
+                                </div>
+                                <!-- Mecánica Básica -->
+                                <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
+                                    <div class="flex justify-between items-center">
+                                        <label class="text-sm text-on-surface font-medium">Mecánica Básica <span class="text-on-surface-variant text-xs">(máx 5)</span></label>
+                                        <span id="val-teoricas-4" class="font-display text-lg text-primary font-bold">5.0</span>
+                                    </div>
+                                    <input id="score-teoricas-4" oninput="handleRangeChange(4)" class="w-full" max="5" min="0" step="0.5" type="range" value="5">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Evaluación Práctica -->
+                        <div id="step-3" class="wizard-step flex flex-col gap-5 hidden">
+                            <h2 class="font-display text-lg text-on-surface font-bold flex items-center gap-2 border-b border-outline-variant/40 pb-2">
+                                <span class="material-symbols-outlined text-primary text-xl">rule</span>
+                                Práctica Vehículos
+                            </h2>
+                            <!-- Vehicle selection tabs inside Wizard -->
+                            <div class="flex bg-surface-container p-1 rounded-xl border border-outline-variant/40 shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] dark:border-outline-variant/10">
+                                <button id="veh-tab-moto" type="button" onclick="switchVehicleTab('moto')" class="flex-1 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all tab-btn-active">
+                                    🏍️ Moto
+                                </button>
+                                <button id="veh-tab-motocarro" type="button" onclick="switchVehicleTab('motocarro')" class="flex-1 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all tab-btn-inactive">
+                                    🛺 Motocarro
+                                </button>
+                                <button id="veh-tab-cuatrimoto" type="button" onclick="switchVehicleTab('cuatrimoto')" class="flex-1 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all tab-btn-inactive">
+                                    🚜 Cuatrimoto
+                                </button>
+                                <button id="veh-tab-carro" type="button" onclick="switchVehicleTab('carro')" class="flex-1 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all tab-btn-inactive">
+                                    🚗 Carro
+                                </button>
+                            </div>
+                            <!-- Dynamic Checklist Container -->
+                            <div id="maneuvers-container" class="flex flex-col gap-3">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Observaciones y Conclusiones -->
+                        <div id="step-4" class="wizard-step flex flex-col gap-5 hidden">
+                            <h2 class="font-display text-lg text-on-surface font-bold flex items-center gap-2 border-b border-outline-variant/40 pb-2">
+                                <span class="material-symbols-outlined text-primary text-xl">notes</span>
+                                Conclusión General
+                            </h2>
+                            <div class="flex flex-col gap-4">
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider flex items-center gap-1">Observaciones Generales</label>
+                                    <textarea id="part-observaciones" oninput="updatePreviewData()" class="w-full input-glass rounded-xl p-3 text-on-surface font-body h-28 resize-none" placeholder="Ingrese observaciones..."></textarea>
+                                    <div class="flex gap-2 mt-1">
+                                        <button id="btn-chip-obs-1" type="button" onclick="insertTemplate('obs', 1)" class="neomorphic-chip px-3.5 py-1.5 rounded-full text-xs font-bold transition-all">Apto General</button>
+                                        <button id="btn-chip-obs-2" type="button" onclick="insertTemplate('obs', 2)" class="neomorphic-chip px-3.5 py-1.5 rounded-full text-xs font-bold transition-all">Apto con Obs.</button>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider flex items-center gap-1">Conclusiones</label>
+                                    <textarea id="part-conclusiones" oninput="updatePreviewData()" class="w-full input-glass rounded-xl p-3 text-on-surface font-body h-28 resize-none" placeholder="Ingrese conclusiones..."></textarea>
+                                    <div class="flex gap-2 mt-1">
+                                        <button id="btn-chip-concl-1" type="button" onclick="insertTemplate('concl', 1)" class="neomorphic-chip px-3.5 py-1.5 rounded-full text-xs font-bold transition-all">Estándar</button>
+                                        <button id="btn-chip-concl-2" type="button" onclick="insertTemplate('concl', 2)" class="neomorphic-chip px-3.5 py-1.5 rounded-full text-xs font-bold transition-all">Falta Teoría</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Wizard Navigation Buttons -->
+                    <div class="flex justify-between items-center pt-4 border-t border-outline-variant/40 mt-2">
+                        <button id="prev-step-btn" onclick="navigateStep(-1)" type="button" class="neomorphic-btn px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base">arrow_back</span> Atrás
+                        </button>
+                        <button id="next-step-btn" onclick="navigateStep(1)" type="button" class="neomorphic-btn-primary px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2">
+                            Siguiente <span class="material-symbols-outlined text-base">arrow_forward</span>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: PREVIEW (Always visible on desktop, tab toggle on mobile) -->
+            <div id="preview-container" class="col-span-12 w-full">
+                
+                <!-- VIEW 2: REPORT PREVIEW -->
+                <div id="preview-view" class="flex flex-col gap-12 items-center pb-12 w-full">
+                    
+                    <div class="preview-wrapper">
+                        <!-- PAGE 1 PREVIEW -->
+                        <div id="preview-page-1" class="preview-page select-none text-slate-800">
+                        <!-- Decorative blue top border -->
+                        <div class="absolute top-0 left-0 w-full h-1.5 bg-slate-800"></div>
+                        
+                        <!-- Report Header -->
+                        <div class="flex justify-between items-start border-b-2 border-slate-800 pb-4 mb-6">
+                            <div class="max-w-[70%]">
+                                <h3 class="font-display text-sm font-bold tracking-tight text-slate-700 leading-tight uppercase">
+                                    INFORME DE EVALUACION DEL CONOCIMIENTO Y HABILIDAD PARA MANIOBRA DE VEHICULOS
+                                </h3>
+                            </div>
+                            <div class="text-right">
+                                <span id="prev-id" class="font-display text-lg font-bold text-slate-600 block">28</span>
+                                <span id="prev-date-top" class="text-xs text-slate-500 font-medium">martes, 7 de abril de 2026</span>
+                            </div>
+                        </div>
+
+                        <!-- Participant Info Row -->
+                        <div class="bg-slate-50 rounded-xl p-5 border border-slate-100 flex gap-6 items-center mb-6">
+                            <!-- Circular Profile Photo -->
+                            <div class="w-24 h-24 rounded-full overflow-hidden border border-slate-300 flex-shrink-0 bg-slate-200">
+                                <img id="prev-profile-photo" class="w-full h-full object-cover hidden">
+                                <div id="prev-profile-photo-ph" class="w-full h-full flex items-center justify-center text-slate-400">
+                                    <span class="material-symbols-outlined text-4xl">account_circle</span>
+                                </div>
+                            </div>
+                            <!-- Details Grid -->
+                            <div class="grid grid-cols-2 gap-x-6 gap-y-3 flex-1 text-sm">
+                                <div class="col-span-2">
+                                    <h4 id="prev-name" class="font-display text-xl font-bold text-slate-800 leading-tight">JOSE DAVID BURBANO ANDRADE</h4>
+                                    <span id="prev-cedula" class="text-xs text-slate-500 font-semibold tracking-wider block mt-1">C.C. 1143867721</span>
+                                </div>
+                                <div class="flex gap-2 items-center text-slate-600">
+                                    <span class="material-symbols-outlined text-slate-400 text-lg">card_membership</span>
+                                    <span id="prev-categorias" class="font-medium">A2-B1</span>
+                                </div>
+                                <div class="flex gap-2 items-center text-slate-600">
+                                    <span class="material-symbols-outlined text-slate-400 text-lg">business</span>
+                                    <span id="prev-empresa" class="font-medium">CDA YUMBO</span>
+                                </div>
+                                <div class="flex gap-2 items-center text-slate-600">
+                                    <span class="material-symbols-outlined text-slate-400 text-lg">call</span>
+                                    <span id="prev-contacto" class="font-medium">3223779706</span>
+                                </div>
+                                <div class="flex gap-2 items-center text-slate-600">
+                                    <span class="material-symbols-outlined text-slate-400 text-lg">location_on</span>
+                                    <span id="prev-ciudad" class="font-medium">Yumbo</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fast Scorecard Row -->
+                        <div class="bg-slate-50 rounded-xl p-5 border border-slate-100 grid grid-cols-4 gap-4 items-center mb-6 text-center text-xs font-semibold text-slate-700">
+                            <div class="border-r border-slate-200">
+                                <span class="text-slate-400 block mb-1 uppercase font-bold text-[10px]">Licencia Moto</span>
+                                <span id="prev-lic-moto" class="text-slate-700 block text-xs">26/08/2035</span>
+                            </div>
+                            <div class="border-r border-slate-200">
+                                <span class="text-slate-400 block mb-1 uppercase font-bold text-[10px]">Licencia Carro</span>
+                                <span id="prev-lic-carro" class="text-slate-700 block text-xs">21/09/2026</span>
+                            </div>
+                            <div class="border-r border-slate-200">
+                                <span class="text-slate-400 block mb-1 uppercase font-bold text-[10px]">Multas</span>
+                                <span id="prev-multas-val" class="px-3 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold inline-block">No</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block mb-1 uppercase font-bold text-[10px]">Vigencia Prueba</span>
+                                <span id="prev-vigencia" class="text-slate-700 block text-xs">07/04/2027</span>
+                            </div>
+                        </div>
+
+                        <!-- Summary of Practical Vehicles Results (4 Cards) -->
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="font-display text-[11px] font-extrabold tracking-wider text-slate-400 uppercase">Evaluación Habilidades Prácticas:</h4>
+                            <!-- General Aprobado Pill -->
+                            <div id="prev-res-general" class="px-8 py-2 rounded-lg bg-green-600 text-white font-bold text-sm tracking-wide shadow-sm">
+                                APROBADO
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-4 mb-6">
+                            <!-- Carro -->
+                            <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col justify-between min-h-[220px]">
+                                <div class="bg-slate-800 text-white p-2.5 flex justify-between items-center">
+                                    <span class="font-display font-bold text-xs uppercase">Carro</span>
+                                    <span class="material-symbols-outlined text-sm">directions_car</span>
+                                </div>
+                                <ul id="prev-man-list-carro" class="p-3 flex-1 flex flex-col gap-1.5 text-[10px] text-slate-600">
+                                    <!-- Filled by JS -->
+                                </ul>
+                                <div id="prev-res-carro" class="bg-slate-50 border-t border-slate-100 p-2 text-center font-bold text-[11px] text-green-600 uppercase">
+                                    Aprobado
+                                </div>
+                            </div>
+
+                            <!-- Motocarro -->
+                            <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col justify-between min-h-[220px]">
+                                <div class="bg-slate-800 text-white p-2.5 flex justify-between items-center">
+                                    <span class="font-display font-bold text-xs uppercase">Motocarro</span>
+                                    <span class="material-symbols-outlined text-sm">local_taxi</span>
+                                </div>
+                                <ul id="prev-man-list-motocarro" class="p-3 flex-1 flex flex-col gap-1.5 text-[10px] text-slate-600">
+                                    <!-- Filled by JS -->
+                                </ul>
+                                <div id="prev-res-motocarro" class="bg-slate-50 border-t border-slate-100 p-2 text-center font-bold text-[11px] text-green-600 uppercase">
+                                    Aprobado
+                                </div>
+                            </div>
+
+                            <!-- Cuatrimoto -->
+                            <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col justify-between min-h-[220px]">
+                                <div class="bg-slate-800 text-white p-2.5 flex justify-between items-center">
+                                    <span class="font-display font-bold text-xs uppercase">Cuatrimoto</span>
+                                    <span class="material-symbols-outlined text-sm">agriculture</span>
+                                </div>
+                                <ul id="prev-man-list-cuatrimoto" class="p-3 flex-1 flex flex-col gap-1.5 text-[10px] text-slate-600">
+                                    <!-- Filled by JS -->
+                                </ul>
+                                <div id="prev-res-cuatrimoto" class="bg-slate-50 border-t border-slate-100 p-2 text-center font-bold text-[11px] text-green-600 uppercase">
+                                    Aprobado
+                                </div>
+                            </div>
+
+                            <!-- Moto -->
+                            <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col justify-between min-h-[220px]">
+                                <div class="bg-slate-800 text-white p-2.5 flex justify-between items-center">
+                                    <span class="font-display font-bold text-xs uppercase">Moto</span>
+                                    <span class="material-symbols-outlined text-sm">motorcycle</span>
+                                </div>
+                                <ul id="prev-man-list-moto" class="p-3 flex-1 flex flex-col gap-1.5 text-[10px] text-slate-600">
+                                    <!-- Filled by JS -->
+                                </ul>
+                                <div id="prev-res-moto" class="bg-slate-50 border-t border-slate-100 p-2 text-center font-bold text-[11px] text-green-600 uppercase">
+                                    Aprobado
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conclusions -->
+                        <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm mb-6">
+                            <div class="bg-slate-800 text-white px-4 py-2 font-display text-xs uppercase font-bold tracking-wider">
+                                Conclusiones:
+                            </div>
+                            <div id="prev-conclusiones-text" class="p-4 text-xs text-slate-600 leading-relaxed font-body">
+                                Cargando conclusiones...
+                            </div>
+                        </div>
+
+                        <!-- Signatures -->
+                        <div class="flex justify-around items-center pt-8 border-t border-slate-100 text-center text-[10px] text-slate-500 font-semibold uppercase mt-8">
+                            <div>
+                                <div class="w-36 h-10 border-b border-slate-300 mx-auto mb-2 flex items-center justify-center text-slate-300 text-xs italic">Valentina Ochoa</div>
+                                <span class="font-bold block text-slate-700">VALENTINA OCHOA</span>
+                                <span>INSTRUCTOR TECNICO SEGURIDAD VIAL</span>
+                            </div>
+                            <div>
+                                <div class="w-36 h-10 border-b border-slate-300 mx-auto mb-2 flex items-center justify-center text-slate-300 text-xs italic">Mario Cordoba</div>
+                                <span class="font-bold block text-slate-700">MARIO ALEXANDER CORDOBA CRUZ</span>
+                                <span>INSTRUCTOR TECNICO SEGURIDAD VIAL</span>
+                            </div>
+                        </div>
+
+                        <!-- Printable Footer -->
+                        <div class="absolute bottom-6 left-12 right-12 flex justify-between items-center text-[9px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+                            <span>Plataforma de Evaluacion para CDAs - Desarrollado por Mario Cordoba</span>
+                            <span>Página 1</span>
+                        </div>
+                    </div>
+                    </div> <!-- End preview-wrapper -->
+
+                    <div class="preview-wrapper">
+                        <!-- PAGE 2 PREVIEW -->
+                        <div id="preview-page-2" class="preview-page select-none text-slate-800">
+                            <!-- Decorative blue top border -->
+                            <div class="absolute top-0 left-0 w-full h-1.5 bg-slate-800"></div>
+                        
+                        <!-- Report Header -->
+                        <div class="flex justify-between items-start border-b-2 border-slate-800 pb-4 mb-6">
+                            <div class="max-w-[70%]">
+                                <h3 class="font-display text-sm font-bold tracking-tight text-slate-700 leading-tight uppercase">
+                                    INFORME DE EVALUACION DEL CONOCIMIENTO Y HABILIDAD PARA MANIOBRA DE VEHICULOS
+                                </h3>
+                            </div>
+                            <div class="text-right">
+                                <span id="prev-id-2" class="font-display text-lg font-bold text-slate-600 block">28</span>
+                                <span id="prev-date-top-2" class="text-xs text-slate-500 font-medium">martes, 7 de abril de 2026</span>
+                            </div>
+                        </div>
+
+                        <!-- Theoretical Test Details -->
+                        <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm mb-6">
+                            <div class="bg-slate-800 text-white px-4 py-2.5 font-display text-xs uppercase font-bold tracking-wider">
+                                Prueba Teórica
+                            </div>
+                            
+                            <div class="p-6">
+                                <!-- Summary metrics -->
+                                <div class="grid grid-cols-4 gap-4 text-center border-b border-slate-100 pb-5 mb-5 text-xs text-slate-700">
+                                    <div>
+                                        <span class="text-slate-400 block mb-1 uppercase font-bold text-[9px]">Preguntas Totales</span>
+                                        <span class="font-bold text-slate-800 text-sm">30</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-400 block mb-1 uppercase font-bold text-[9px]">Respuestas Correctas</span>
+                                        <span id="prev-correctas" class="font-bold text-slate-800 text-sm">28</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-400 block mb-1 uppercase font-bold text-[9px]">Resultado</span>
+                                        <span id="prev-res-teoria" class="px-3 py-0.5 rounded bg-green-100 text-green-800 font-bold text-[10px]">APROBADO</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-400 block mb-1 uppercase font-bold text-[9px]">Puntaje de la prueba</span>
+                                        <span id="prev-pct-teoria" class="font-bold text-slate-800 text-sm">93%</span>
+                                    </div>
+                                </div>
+
+                                <!-- Progress Bars & Overall score -->
+                                <div class="flex gap-6 items-center">
+                                    <!-- Sliders preview grid -->
+                                    <div class="flex-1 flex flex-col gap-4 text-[11px]">
+                                        <!-- Conducción -->
+                                        <div class="flex items-center justify-between gap-4">
+                                            <span class="w-36 text-slate-500 font-semibold">Técnicas de Conducción</span>
+                                            <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="prev-bar-1" class="h-full bg-green-500" style="width: 100%;"></div>
+                                            </div>
+                                            <span id="prev-val-1" class="font-bold text-slate-700 text-right w-6">10.0</span>
+                                        </div>
+                                        <!-- Normatividad -->
+                                        <div class="flex items-center justify-between gap-4">
+                                            <span class="w-36 text-slate-500 font-semibold">Normatividad</span>
+                                            <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="prev-bar-2" class="h-full bg-green-500" style="width: 100%;"></div>
+                                            </div>
+                                            <span id="prev-val-2" class="font-bold text-slate-700 text-right w-6">10.0</span>
+                                        </div>
+                                        <!-- Elementos EPP -->
+                                        <div class="flex items-center justify-between gap-4">
+                                            <span class="w-36 text-slate-500 font-semibold">Elementos EPP</span>
+                                            <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="prev-bar-3" class="h-full bg-green-500" style="width: 100%;"></div>
+                                            </div>
+                                            <span id="prev-val-3" class="font-bold text-slate-700 text-right w-6">10.0</span>
+                                        </div>
+                                        <!-- Mecánica Básica -->
+                                        <div class="flex items-center justify-between gap-4">
+                                            <span class="w-36 text-slate-500 font-semibold">Mecánica Básica</span>
+                                            <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="prev-bar-4" class="h-full bg-green-500" style="width: 100%;"></div>
+                                            </div>
+                                            <span id="prev-val-4" class="font-bold text-slate-700 text-right w-6">10.0</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Large circular score badge -->
+                                    <div class="w-20 h-20 rounded-full bg-green-50 border-4 border-green-500 flex flex-col items-center justify-center text-green-700 shadow-sm flex-shrink-0">
+                                        <span id="prev-avg-score" class="font-display font-extrabold text-2xl leading-none">93%</span>
+                                        <span class="text-[8px] uppercase tracking-wider font-bold mt-1 text-green-500">Promedio</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Observations text -->
+                        <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm mb-6">
+                            <div class="bg-slate-800 text-white px-4 py-2 font-display text-xs uppercase font-bold tracking-wider">
+                                Observaciones:
+                            </div>
+                            <div id="prev-observaciones-text" class="p-4 text-xs text-slate-600 leading-relaxed font-body">
+                                Cargando observaciones...
+                            </div>
+                        </div>
+
+                        <!-- Evidences Images Layout -->
+                        <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm mb-6">
+                            <div class="bg-slate-800 text-white px-4 py-2 font-display text-xs uppercase font-bold tracking-wider">
+                                Evidencias de la Actividad
+                            </div>
+                            <div class="p-5">
+                                <div class="grid grid-cols-4 gap-4">
+                                    <!-- Image 1 -->
+                                    <div class="aspect-[3/5] rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative flex items-center justify-center text-slate-300">
+                                        <img id="prev-img-ev1" class="w-full h-full object-cover hidden">
+                                        <span id="prev-img-ev1-ph" class="material-symbols-outlined text-3xl">photo</span>
+                                    </div>
+                                    <!-- Image 2 -->
+                                    <div class="aspect-[3/5] rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative flex items-center justify-center text-slate-300">
+                                        <img id="prev-img-ev2" class="w-full h-full object-cover hidden">
+                                        <span id="prev-img-ev2-ph" class="material-symbols-outlined text-3xl">photo</span>
+                                    </div>
+                                    <!-- Image 3 -->
+                                    <div class="aspect-[3/5] rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative flex items-center justify-center text-slate-300">
+                                        <img id="prev-img-ev3" class="w-full h-full object-cover hidden">
+                                        <span id="prev-img-ev3-ph" class="material-symbols-outlined text-3xl">photo</span>
+                                    </div>
+                                    <!-- Image 4 -->
+                                    <div class="aspect-[3/5] rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative flex items-center justify-center text-slate-300">
+                                        <img id="prev-img-ev4" class="w-full h-full object-cover hidden">
+                                        <span id="prev-img-ev4-ph" class="material-symbols-outlined text-3xl">photo</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Printable Footer -->
+                        <div class="absolute bottom-6 left-12 right-12 flex justify-between items-center text-[9px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+                            <span>Plataforma de Evaluacion para CDAs - Desarrollado por Mario Cordoba</span>
+                            <span>Página 2</span>
+                        </div>
+                        </div>
+                    </div> <!-- End preview-wrapper for page 2 -->
+                    
+                </div>
+            </div>
+            
+        </div>
+
+    </main>
+
+    <!-- Floating Action Button Menu (Speed Dial Actions) -->
+    <div class="fixed z-[60] flex flex-col items-end gap-3 select-none bottom-[88px] md:bottom-6 right-6">
+        
+        <!-- Expanding Options Menu Overlay -->
+        <div id="floating-menu" class="scale-0 opacity-0 hidden transition-all duration-200 origin-bottom-right flex flex-col gap-2.5 p-4 neomorphic-panel rounded-2xl border border-white/40 min-w-[250px] max-w-[280px]">
+            <h4 class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider px-2 border-b border-outline-variant/40 pb-2 mb-1">Acciones</h4>
+            
+            <!-- Conectar (Mobile/Tablet only) -->
+            <button onclick="generateQR()" class="lg:hidden flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base text-primary">qr_code_scanner</span>
+                <span>Conectar</span>
+            </button>
+            
+            <!-- Buscar (Mobile/Tablet only) -->
+            <button onclick="openSearch()" class="lg:hidden flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base text-secondary">search</span>
+                <span>Buscar</span>
+            </button>
+            
+            <!-- Cambiar Tema -->
+            <button onclick="toggleTheme()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base text-amber-500" id="menu-theme-icon">dark_mode</span>
+                <span id="menu-theme-text">Modo Oscuro</span>
+            </button>
+            
+            <!-- Guardar en Base de Datos -->
+            <button id="save-db-btn" onclick="saveToDatabase()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl bg-[#e2f5ec] text-[#0f5132] border border-[#a3cfbb]/40 hover:bg-[#d1fae5] active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span id="save-spinner" class="material-symbols-outlined animate-spin text-base hidden">progress_activity</span>
+                <span id="save-icon" class="material-symbols-outlined text-base">cloud_upload</span>
+                <span>Guardar Cambios</span>
+            </button>
+            
+            <!-- Generar PDF de Excel -->
+            <button onclick="triggerPrintPDF()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl bg-secondary/15 text-secondary border border-secondary/20 hover:bg-secondary/25 active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base">picture_as_pdf</span>
+                <span>PDF de Excel</span>
+            </button>
+            
+            <!-- Imprimir Vista Previa (Navegador) -->
+            <button onclick="printPreview()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base">print</span>
+                <span>Imprimir Vista Previa</span>
+            </button>
+            
+            <!-- Limpiar Formulario -->
+            <button onclick="resetForm()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base">clear_all</span>
+                <span>Limpiar Formulario</span>
+            </button>
+            
+            <!-- Cancelar Edición (Hidden unless editingId !== null) -->
+            <button id="menu-cancel-edit-btn" onclick="nuevoRegistro()" class="hidden flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base">close</span>
+                <span>Cancelar Edición</span>
+            </button>
+            
+            <!-- Eliminar Registro (Hidden unless editingId !== null) -->
+            <button id="menu-delete-btn" onclick="eliminarRegistro()" class="hidden flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
+                <span class="material-symbols-outlined text-base">delete</span>
+                <span>Eliminar Registro</span>
+            </button>
+        </div>
+
+        <!-- Main FAB Menu Trigger -->
+        <button id="fab-menu-btn" onclick="toggleFloatingMenu()" type="button" class="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-white flex items-center justify-center active:scale-90 transition-all">
+            <span id="fab-icon" class="material-symbols-outlined text-2xl font-bold">menu</span>
+        </button>
+    </div>
+
+    <!-- Bottom Navigation Tab Bar - Mobile Only -->
+    <div id="mobile-bottom-nav" class="fixed bottom-0 left-0 w-full h-[76px] bg-background/95 backdrop-blur-md border-t border-outline-variant/30 px-6 pt-3 pb-6 flex justify-around items-center z-50 md:hidden shadow-[0_-4px_12px_var(--panel-shadow-dark)]">
+        <!-- Formulario Tab Button -->
+        <button id="mobile-view-form-btn" onclick="switchView('form')" type="button" class="flex items-center justify-center gap-2 w-[140px] py-2.5 rounded-2xl transition-all duration-300 bg-surface-container shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] border border-transparent text-primary font-bold">
+            <span class="material-symbols-outlined text-xl">edit</span>
+            <span>Formulario</span>
+        </button>
+        <!-- Vista Previa Tab Button -->
+        <button id="mobile-view-preview-btn" onclick="switchView('preview')" type="button" class="flex items-center justify-center gap-2 w-[140px] py-2.5 rounded-2xl transition-all duration-300 text-on-surface-variant/70 font-semibold hover:text-on-surface">
+            <span class="material-symbols-outlined text-xl">visibility</span>
+            <span>Vista Previa</span>
+        </button>
+    </div>
+<!-- Interactive Logic Script -->
+    <script>
+        // Global variables and configuration
+        let activeView = "form";
+        let activeVehicleTab = "moto";
+        let activeStep = 1;
+
+        // Registros existentes (para buscar/editar) y modo de edición
+        let allRecords = [];
+        let editingId = null;   // null = creando nuevo; número = editando ese ID
+        let editingNombreOriginal = null; // nombre con el que se cargó el registro (para renombrar fotos)
+
+        let empresasCatalog = [];
+        let participantData = {
+            id: 28,
+            nombre: "",
+            cedula: "",
+            empresa: "",
+            ciudad: "",
+            categorias: "",
+            contacto: "",
+            fecha: "",
+            vigenciaA2: "",
+            vigenciaB1: "",
+            multas: "No",
+            observaciones: "",
+            conclusiones: ""
+        };
+
+        // Evaluación Teórica. Máximos como en Excel (hoja Datos H2:H5):
+        // Técnicas y Normatividad valen 10; EPP y Mecánica valen 5.
+        // El total posible es 30 puntos.
+        const theoryMax = { tecnicas: 10, normatividad: 10, epp: 5, mecanica: 5 };
+        const THEORY_TOTAL = 30; // = suma de theoryMax
+        let theoryScores = {
+            tecnicas: 10.0,
+            normatividad: 10.0,
+            epp: 5.0,
+            mecanica: 5.0
+        };
+
+        // Practical maneuvers specifications per vehicle type
+        const maneuversSpec = {
+            moto: [
+                { key: "proyeccion_moto", label: "Proyección MOTO" },
+                { key: "equilibrio", label: "Equilibrio" },
+                { key: "parqueo_moto", label: "PARQUEO MOTO" },
+                { key: "tecnica_apagado", label: "Técnica moviendo el vehículo apagado" }
+            ],
+            motocarro: [
+                { key: "habilidades_motocarro", label: "Habilidades en pista MOTOCARRO" },
+                { key: "proyeccion_motocarro", label: "PROYECCION MOTOCARRO" },
+                { key: "parqueo_motocarro", label: "PARQUEO MOTOCARRO" },
+                { key: "velocidad_motocarro", label: "Manejo a baja velocidad MOTOCARRO" },
+                { key: "visoespacial_motocarro", label: "Adaptación visoespacial MOTOCARRO" },
+                { key: "espejos_motocarro", label: "Uso correcto de espejos MOTOCARRO" }
+            ],
+            cuatrimoto: [
+                { key: "habilidades_cuatrimoto", label: "Habilidades en pista CUATRIMOTO" },
+                { key: "proyeccion_cuatrimoto", label: "PROYECCION CUATRIMOTO" },
+                { key: "parqueo_cuatrimoto", label: "PARQUEO CUATRIMOTO" },
+                { key: "velocidad_cuatrimoto", label: "Manejo a baja velocidad CUATRIMOTO" },
+                { key: "visoespacial_cuatrimoto", label: "Adaptación visoespacial CUATRIMOTO" },
+                { key: "espejos_cuatrimoto", label: "Uso correcto de espejos CUATRIMOTO" }
+            ],
+            carro: [
+                { key: "habilidades_carro", label: "Habilidades en pista CARRO" },
+                { key: "proyeccion_carro", label: "Proyección CARRO" },
+                { key: "parqueo_carro", label: "Técnica de parqueo CARRO" },
+                { key: "velocidad_carro", label: "Manejo a baja velocidad CARRO" },
+                { key: "visoespacial_carro", label: "Adaptación viso espacial CARRO" },
+                { key: "espejos_carro", label: "Uso correcto de espejos CARRO" }
+            ]
+        };
+
+        // User practical scores selections. Initiated as Approved (1 = approved, 0 = reproved)
+        let practicalScores = {};
+        Object.keys(maneuversSpec).forEach(veh => {
+            maneuversSpec[veh].forEach(m => {
+                practicalScores[m.key] = 1; // Default to Approved
+            });
+        });
+
+        // Image files base64 state
+        let uploadedImages = {
+            profile: null,
+            ev1: null,
+            ev2: null,
+            ev3: null,
+            ev4: null
+        };
+
+        // Templates for Observaciones and Conclusiones
+        // =========================================================================
+        // LIGHT / DARK THEME SYSTEM LOGIC
+        // =========================================================================
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById("theme-icon");
+            const menuIcon = document.getElementById("menu-theme-icon");
+            const menuText = document.getElementById("menu-theme-text");
+            
+            if (html.classList.contains("dark")) {
+                html.classList.remove("dark");
+                localStorage.setItem("theme", "light");
+                if (icon) icon.textContent = "dark_mode";
+                if (menuIcon) menuIcon.textContent = "dark_mode";
+                if (menuText) menuText.textContent = "Modo Oscuro";
+            } else {
+                html.classList.add("dark");
+                localStorage.setItem("theme", "dark");
+                if (icon) icon.textContent = "light_mode";
+                if (menuIcon) menuIcon.textContent = "light_mode";
+                if (menuText) menuText.textContent = "Modo Claro";
+            }
+        }
+
+        // =========================================================================
+        // WIZARD NAVIGATION LOGIC
+        // =========================================================================
+                // =========================================================================
+        // FLOATING SPEED-DIAL ACTION MENU
+        // =========================================================================
+        function toggleFloatingMenu() {
+            const menu = document.getElementById("floating-menu");
+            const icon = document.getElementById("fab-icon");
+            if (!menu || !icon) return;
+
+            if (menu.classList.contains("hidden")) {
+                menu.classList.remove("hidden");
+                setTimeout(() => {
+                    menu.classList.remove("scale-0", "opacity-0");
+                }, 10);
+                icon.textContent = "close";
+            } else {
+                menu.classList.add("scale-0", "opacity-0");
+                icon.textContent = "menu";
+                setTimeout(() => {
+                    menu.classList.add("hidden");
+                }, 200);
+            }
+        }
+
+        // Close menu on click outside
+        window.addEventListener("click", (e) => {
+            const menu = document.getElementById("floating-menu");
+            const fab = document.getElementById("fab-menu-btn");
+            if (menu && fab && !menu.classList.contains("hidden")) {
+                if (!fab.contains(e.target) && !menu.contains(e.target)) {
+                    toggleFloatingMenu();
+                }
+            }
+        });
+
+        // =========================================================================
+        // DETECTOR Y RESUMEN DE CAMBIOS AL GUARDAR
+        // =========================================================================
+        function getChangesSummary() {
+            if (editingId === null) {
+                // New record
+                const nombre = document.getElementById("part-nombre").value.trim();
+                const cedula = document.getElementById("part-cedula").value.trim();
+                const empresa = document.getElementById("part-empresa").value;
+                const theorySum = theoryScores.tecnicas + theoryScores.normatividad + theoryScores.epp + theoryScores.mecanica;
+                const theoryRatio = theorySum / THEORY_TOTAL;
+                const theoryPct = Math.round(theoryRatio * 100) + "%";
+                
+                return `Registrando NUEVA evaluación:\n` +
+                       `• Participante: ${nombre}\n` +
+                       `• Cédula: ${cedula}\n` +
+                       `• Empresa: ${empresa || "(no asignada)"}\n` +
+                       `• Puntaje Teórico: ${theoryPct}`;
+            }
+
+            // Editing record
+            const orig = allRecords.find(r => String(r.id) === String(editingId));
+            if (!orig) return "Actualizando registro...";
+
+            let diffs = [];
+
+            function checkDiff(label, origVal, newVal) {
+                const normOrig = (origVal || "").toString().trim().toLowerCase();
+                const normNew = (newVal || "").toString().trim().toLowerCase();
+                if (normOrig !== normNew) {
+                    diffs.push(`• ${label}: "${origVal || '(vacío)'}" ➔ "${newVal || '(vacío)'}"`);
+                }
+            }
+
+            // Compare details
+            checkDiff("Nombre", orig.nombre, document.getElementById("part-nombre").value.trim());
+            checkDiff("Cédula", orig.cedula, document.getElementById("part-cedula").value.trim());
+            checkDiff("Empresa", orig.empresa, document.getElementById("part-empresa").value);
+            checkDiff("Categorías", orig.categorias, document.getElementById("part-categorias").value.trim());
+            checkDiff("Contacto", orig.contacto, document.getElementById("part-contacto").value.trim());
+            checkDiff("Ciudad", orig.ciudad, document.getElementById("part-ciudad").value);
+            checkDiff("Fecha de Prueba", toISO(orig.fecha), document.getElementById("part-fecha").value);
+            checkDiff("Vigencia A2", toISO(orig.vigenciaA2), document.getElementById("part-vigencia-a2").value);
+            checkDiff("Vigencia B1", toISO(orig.vigenciaB1), document.getElementById("part-vigencia-b1").value);
+            checkDiff("Multas", orig.multas, document.getElementById("part-multas").value);
+
+            // Compare theory
+            const origTec = parseFloat(orig.tecnicas || 0);
+            const origNorm = parseFloat(orig.normatividad || 0);
+            const origEpp = parseFloat(orig.epp || 0);
+            const origMec = parseFloat(orig.mecanica || 0);
+
+            if (origTec !== theoryScores.tecnicas) {
+                diffs.push(`• Técnicas de Conducción: ${origTec.toFixed(1)} ➔ ${theoryScores.tecnicas.toFixed(1)}`);
+            }
+            if (origNorm !== theoryScores.normatividad) {
+                diffs.push(`• Normatividad: ${origNorm.toFixed(1)} ➔ ${theoryScores.normatividad.toFixed(1)}`);
+            }
+            if (origEpp !== theoryScores.epp) {
+                diffs.push(`• Elementos EPP: ${origEpp.toFixed(1)} ➔ ${theoryScores.epp.toFixed(1)}`);
+            }
+            if (origMec !== theoryScores.mecanica) {
+                diffs.push(`• Mecánica Básica: ${origMec.toFixed(1)} ➔ ${theoryScores.mecanica.toFixed(1)}`);
+            }
+
+            // Compare maneuvers
+            const vehicles = ["moto", "motocarro", "cuatrimoto", "carro"];
+            vehicles.forEach(v => {
+                maneuversSpec[v].forEach(m => {
+                    const origApproved = esAprobado(orig["m_" + m.key]) ? 1 : 0;
+                    const newApproved = practicalScores[m.key];
+                    if (origApproved !== newApproved) {
+                        const statusOrig = origApproved === 1 ? "Aprobado" : "Reprobado";
+                        const statusNew = newApproved === 1 ? "Aprobado" : "Reprobado";
+                        diffs.push(`• Maniobra ${m.label}: "${statusOrig}" ➔ "${statusNew}"`);
+                    }
+                });
+            });
+
+            // Compare observations & conclusions
+            checkDiff("Observaciones", orig.observaciones, document.getElementById("part-observaciones").value.trim());
+            checkDiff("Conclusiones", orig.conclusiones, document.getElementById("part-conclusiones").value.trim());
+
+            if (diffs.length === 0) {
+                return `Guardando cambios en el registro ID ${editingId} (sin cambios detectados en los campos).`;
+            }
+
+            return `Modificando registro ID ${editingId}:\n` + diffs.join("\n");
+        }
+
+                // =========================================================================
+        // RECORD ARROW NAVIGATION LOGIC
+        // =========================================================================
+        function navigateRecords(dir) {
+            if (allRecords.length === 0) return;
+
+            // Sort records by ID ascending to navigate logically
+            const sortedRecords = [...allRecords].sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+            if (editingId === null) {
+                // Currently creating a new record
+                if (dir === -1) {
+                    // Previous of "New" is the last record
+                    selectRecord(sortedRecords[sortedRecords.length - 1].id);
+                } else {
+                    // Next of "New" is the first record
+                    selectRecord(sortedRecords[0].id);
+                }
+            } else {
+                // Currently editing a record
+                const currentIdx = sortedRecords.findIndex(r => String(r.id) === String(editingId));
+                if (currentIdx !== -1) {
+                    let targetIdx = currentIdx + dir;
+                    if (targetIdx >= 0 && targetIdx < sortedRecords.length) {
+                        selectRecord(sortedRecords[targetIdx].id);
+                    } else if (targetIdx === sortedRecords.length && dir === 1) {
+                        // Navigating past the last record goes back to "New" mode
+                        nuevoRegistro();
+                    } else if (targetIdx === -1 && dir === -1) {
+                        // Navigating before the first record goes to "New" mode
+                        nuevoRegistro();
+                    }
+                }
+            }
+        }
+
+        function updateRecordNavIndicator() {
+            const indicator = document.getElementById("record-nav-indicator");
+            if (!indicator) return;
+
+            if (editingId === null) {
+                indicator.textContent = "NUEVO";
+                indicator.className = "text-[10px] font-extrabold text-primary px-2 min-w-[55px] text-center select-none uppercase tracking-wider";
+            } else {
+                indicator.textContent = `ID ${editingId}`;
+                indicator.className = "text-[10px] font-extrabold text-on-surface px-2 min-w-[55px] text-center select-none uppercase tracking-wider";
+            }
+        }
+
+        // =========================================================================
+        // DYNAMIC LAYOUT MANAGEMENT (SPLIT-SCREEN / FORM ONLY)
+        // =========================================================================
+        function adjustLayout() {
+            const isMobile = window.innerWidth < 1024;
+            const gridCont = document.getElementById("grid-split-container");
+            const formCont = document.getElementById("form-container");
+            const prevCont = document.getElementById("preview-container");
+            
+            if (!formCont || !prevCont) return;
+
+            if (isMobile) {
+                // Mobile: tab toggle (fast display toggle)
+                if (gridCont) {
+                    gridCont.classList.remove("split-active");
+                }
+                
+                // Clear desktop inline overrides
+                formCont.style.width = "";
+                formCont.style.maxWidth = "";
+                formCont.style.marginLeft = "";
+                formCont.style.marginRight = "";
+                
+                prevCont.style.width = "";
+                prevCont.style.maxWidth = "";
+                prevCont.style.opacity = "";
+                prevCont.style.visibility = "";
+                prevCont.style.pointerEvents = "";
+                
+                // Mobile display toggling
+                if (activeView === "form") {
+                    formCont.style.display = "block";
+                    prevCont.style.display = "none";
+                } else {
+                    formCont.style.display = "none";
+                    prevCont.style.display = "block";
+                }
+            } else {
+                // Desktop: smooth animated layout transition managed by CSS classes
+                formCont.style.display = "";
+                prevCont.style.display = "";
+                
+                if (activeView === "form") {
+                    if (gridCont) gridCont.classList.remove("split-active");
+                } else {
+                    if (gridCont) gridCont.classList.add("split-active");
+                    
+                    // Trigger scaling sequentially as layout shifts
+                    setTimeout(scalePreview, 100);
+                    setTimeout(scalePreview, 300);
+                    setTimeout(scalePreview, 500);
+                }
+            }
+        }
+
+                // =========================================================================
+        // SCROLL-LINKED FLOATING AVATAR ANIMATION (FADE & BLUR ON SCROLL)
+        // =========================================================================
+        let profilePhotoScrollListener = null;
+
+        function initProfilePhotoScroll() {
+            const photo = document.getElementById("media-step-1");
+            if (!photo) return;
+
+            if (profilePhotoScrollListener) {
+                window.removeEventListener("scroll", profilePhotoScrollListener);
+            }
+
+            profilePhotoScrollListener = () => {
+                const step1 = document.getElementById("step-1");
+                if (!step1 || step1.classList.contains("hidden")) {
+                    photo.style.opacity = "";
+                    photo.style.filter = "";
+                    photo.style.transform = "";
+                    return;
+                }
+
+                const scrollTop = window.scrollY;
+                const maxScroll = 60; // fast dissolve: completely invisible after 60px of scroll
+                const pct = Math.min(scrollTop / maxScroll, 1);
+
+                // GPU-accelerated updates
+                photo.style.opacity = (1 - pct).toFixed(2);
+                photo.style.filter = `blur(${(pct * 6).toFixed(1)}px)`;
+                photo.style.transform = `translateX(-50%) translateY(${(pct * -20).toFixed(1)}px)`;
+            };
+
+            window.addEventListener("scroll", profilePhotoScrollListener, { passive: true });
+            // Initial call
+            profilePhotoScrollListener();
+        }
+
+                // =========================================================================
+        // NEOMORPHIC CHIP STATUS MANAGEMENT
+        // =========================================================================
+        function updateChipStatus() {
+            const obsText = document.getElementById("part-observaciones") ? document.getElementById("part-observaciones").value : "";
+            const conclText = document.getElementById("part-conclusiones") ? document.getElementById("part-conclusiones").value : "";
+            
+            // Check Obs templates
+            const btnObs1 = document.getElementById("btn-chip-obs-1");
+            const btnObs2 = document.getElementById("btn-chip-obs-2");
+            if (btnObs1 && btnObs2) {
+                if (obsText === templates.obs[1]) {
+                    btnObs1.classList.add("is-active");
+                    btnObs2.classList.remove("is-active");
+                } else if (obsText === templates.obs[2]) {
+                    btnObs1.classList.remove("is-active");
+                    btnObs2.classList.add("is-active");
+                } else {
+                    btnObs1.classList.remove("is-active");
+                    btnObs2.classList.remove("is-active");
+                }
+            }
+            
+            // Check Concl templates
+            const btnConcl1 = document.getElementById("btn-chip-concl-1");
+            const btnConcl2 = document.getElementById("btn-chip-concl-2");
+            if (btnConcl1 && btnConcl2) {
+                if (conclText === templates.concl[1]) {
+                    btnConcl1.classList.add("is-active");
+                    btnConcl2.classList.remove("is-active");
+                } else if (conclText === templates.concl[2]) {
+                    btnConcl1.classList.remove("is-active");
+                    btnConcl2.classList.add("is-active");
+                } else {
+                    btnConcl1.classList.remove("is-active");
+                    btnConcl2.classList.remove("is-active");
+                }
+            }
+        }
+
+        function navigateStep(dir) {
+            let target = activeStep + dir;
+            if (target >= 1 && target <= 4) {
+                goToStep(target);
+            }
+        }
+
+        function goToStep(step) {
+            activeStep = step;
+            updateWizardStepUI();
+            
+            // Scroll to the wizard container on mobile
+            const container = document.getElementById("form-container");
+            if (container && window.innerWidth < 1024) {
+                container.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+            
+            // Force scroll listener recalculation
+            if (typeof profilePhotoScrollListener === "function") {
+                profilePhotoScrollListener();
+            }
+        }
+
+        function getManeuverPercentage(vehicleType) {
+            const maneuvers = maneuversSpec[vehicleType];
+            let aprobadas = 0;
+            maneuvers.forEach(m => {
+                if (practicalScores[m.key] === 1) aprobadas++;
+            });
+            return maneuvers.length ? (aprobadas / maneuvers.length) : 0;
+        }
+
+        function updateWizardStepUI() {
+            // Update step nodes and panels visibility
+            for (let i = 1; i <= 4; i++) {
+                const node = document.getElementById(`step-node-${i}`);
+                const stepDiv = document.getElementById(`step-${i}`);
+                const mediaDiv = document.getElementById(`media-step-${i}`);
+                
+                if (!node) continue;
+
+                if (i === activeStep) {
+                    node.className = "wizard-step-node active";
+                    if (stepDiv) stepDiv.classList.remove("hidden");
+                    if (mediaDiv) mediaDiv.classList.remove("hidden");
+                } else if (i < activeStep) {
+                    node.className = "wizard-step-node completed";
+                    if (stepDiv) stepDiv.classList.add("hidden");
+                    if (mediaDiv) mediaDiv.classList.add("hidden");
+                } else {
+                    node.className = "wizard-step-node";
+                    if (stepDiv) stepDiv.classList.add("hidden");
+                    if (mediaDiv) mediaDiv.classList.add("hidden");
+                }
+            }
+
+            // Fill line
+            const fill = document.getElementById("wizard-progress-fill");
+            if (fill) {
+                const percent = ((activeStep - 1) / 3) * 100;
+                fill.style.width = `${percent}%`;
+            }
+
+            // Navigation buttons visibility
+            const prevBtn = document.getElementById("prev-step-btn");
+            const nextBtn = document.getElementById("next-step-btn");
+            
+            if (prevBtn) {
+                prevBtn.style.visibility = (activeStep === 1) ? "hidden" : "visible";
+            }
+            if (nextBtn) {
+                nextBtn.style.visibility = (activeStep === 4) ? "hidden" : "visible";
+            }
+
+            // Update real-time stats in step panels
+            const theorySum = theoryScores.tecnicas + theoryScores.normatividad + theoryScores.epp + theoryScores.mecanica;
+            const theoryRatio = theorySum / THEORY_TOTAL;
+            const theoryPct = Math.round(theoryRatio * 100) + "%";
+            const theoryPassed = theoryRatio >= 0.8;
+
+            const theoryAvgLabel = document.getElementById("wizard-theory-avg");
+            const theoryStatusLabel = document.getElementById("wizard-theory-status");
+            const theoryProgress = document.getElementById("wizard-theory-progress");
+            
+            if (theoryAvgLabel) theoryAvgLabel.textContent = theoryPct;
+            if (theoryStatusLabel) {
+                if (theoryPassed) {
+                    theoryStatusLabel.textContent = "APROBADO";
+                    theoryStatusLabel.className = "text-xs font-bold text-green-600 uppercase mt-0.5";
+                } else {
+                    theoryStatusLabel.textContent = "REPROBADO";
+                    theoryStatusLabel.className = "text-xs font-bold text-red-600 uppercase mt-0.5";
+                }
+            }
+            if (theoryProgress) {
+                theoryProgress.style.width = theoryPct;
+                if (theoryPassed) {
+                    theoryProgress.className = "bg-green-500 h-full transition-all";
+                } else {
+                    theoryProgress.className = "bg-red-500 h-full transition-all";
+                }
+            }
+
+            const summaryTheory = document.getElementById("wizard-summary-theory");
+            const summaryPractice = document.getElementById("wizard-summary-practice");
+            
+            if (summaryTheory) {
+                summaryTheory.textContent = theoryPct;
+                summaryTheory.className = theoryPassed ? "text-sm font-extrabold text-green-600 block" : "text-sm font-extrabold text-red-600 block";
+            }
+            
+            if (summaryPractice) {
+                const pctCarro = getManeuverPercentage("carro");
+                const pctMotocarro = getManeuverPercentage("motocarro");
+                const pctCuatrimoto = getManeuverPercentage("cuatrimoto");
+                const pctMoto = getManeuverPercentage("moto");
+
+                const algunVehiculoReprueba = pctCarro < 0.8 || pctMotocarro < 0.8 || pctCuatrimoto < 0.8 || pctMoto < 0.8;
+                const practiceAvg = (pctMotocarro + pctCuatrimoto + pctCarro + pctMoto) / 4;
+                const ponderado = practiceAvg * 0.6 + theoryRatio * 0.4;
+                const isApproved = !algunVehiculoReprueba && ponderado >= 0.8;
+
+                if (isApproved) {
+                    summaryPractice.textContent = "APROBADO";
+                    summaryPractice.className = "text-sm font-extrabold text-green-600 block mt-1";
+                } else {
+                    summaryPractice.textContent = "REPROBADO";
+                    summaryPractice.className = "text-sm font-extrabold text-red-600 block mt-1";
+                }
+            }
+        }
+
+        const templates = {
+            obs: {
+                1: "Apto para el cargo en las categorias presentadas.",
+                2: "Apto con observaciones. Se recomienda realizar seguimiento periódico y capacitación de refuerzo en técnicas preventivas."
+            },
+            concl: {
+                1: "En cumplimiento de lo establecido en la NTC-ISO -IEC 17020 numeral 6.1.1. y CEA- 3.0-01 numeral 6.1.1., se realizó prueba al personal que realiza movimiento de vehículos durante las actividades de inspección. Los resultados evidencian que el colaborador evaluado demuestra los conocimientos, habilidades técnicas y destrezas prácticas necesarias para la correcta y segura movilización de los vehículos.",
+                2: "realizó la prueba teórica, la cual es un componente obligatorio dentro del proceso de evaluación. En consecuencia, no es posible emitir una calificación final, ya que dicha prueba es fundamental para verificar los conocimientos normativos, técnicos y de seguridad vial requeridos."
+            }
+        };
+
+        // Init function
+        window.addEventListener("DOMContentLoaded", () => {
+            // Set today's date by default
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById("part-fecha").value = today;
+            
+            // Populate catalogs (simulated if run standalone, overwritten by VBA bridge)
+            const sampleCatalog = [
+                { nombre: "CDA YUMBO", ciudad: "Yumbo" },
+                { nombre: "CDA LA PLAYA", ciudad: "Santiago de Cali" }
+            ];
+            cargarCatalogos(sampleCatalog);
+            
+            // Render maneuvers list
+            renderManeuversList();
+
+            // Initialize Theme System
+            const savedTheme = localStorage.getItem("theme");
+            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add("dark");
+                const icon = document.getElementById("theme-icon");
+                const menuIcon = document.getElementById("menu-theme-icon");
+                const menuText = document.getElementById("menu-theme-text");
+                if (icon) icon.textContent = "light_mode";
+                if (menuIcon) menuIcon.textContent = "light_mode";
+                if (menuText) menuText.textContent = "Modo Claro";
+            }
+
+            // Initialize wizard steps UI
+            updateWizardStepUI();
+
+            // Init preview
+            updatePreviewData();
+
+            // Cargar registros existentes para buscar/editar
+            loadRecords().then(() => {
+                if (typeof updateRecordNavIndicator === "function") {
+                    updateRecordNavIndicator();
+                }
+            });
+
+            // Sync initial view switcher pill position
+            const formBtn = document.getElementById("view-form-btn");
+            const pill = document.getElementById("view-tab-pill");
+            if (formBtn && pill) {
+                if (activeView === "form") {
+                    pill.style.transform = "translateX(0)";
+                } else {
+                    pill.style.transform = `translateX(${formBtn.offsetWidth}px)`;
+                }
+            }
+
+            // Initialize scroll-linked avatar fade/blur
+            if (typeof initProfilePhotoScroll === "function") {
+                initProfilePhotoScroll();
+            }
+
+            // Sync neomorphic chip states
+            if (typeof updateChipStatus === "function") {
+                updateChipStatus();
+            }
+
+            // Trigger layout adjustments
+            if (typeof adjustLayout === "function") {
+                adjustLayout();
+            }
+        });
+
+        // Window resize event handler
+        window.addEventListener("resize", () => {
+            adjustLayout();
+        });
+
+        // =========================================================================
+        // BUSCAR / EDITAR REGISTROS EXISTENTES
+        // =========================================================================
+
+        // Traer los registros de la BD (JSON que exporta VBA).
+        // Devuelve una promesa para poder encadenar el re-render cuando lleguen
+        // los datos frescos (evita mostrar la version anterior de la BD).
+        // El parametro ?t= rompe cualquier cache del navegador sobre /data.
+        function loadRecords() {
+            return fetch("/data?t=" + Date.now(), { cache: "no-store" })
+                .then(res => res.json())
+                .then(data => {
+                    allRecords = Array.isArray(data) ? data : [];
+                    // Si el buscador esta abierto, repintar con lo recien traido
+                    const modal = document.getElementById("search-modal");
+                    if (modal && !modal.classList.contains("hidden")) {
+                        filterRecords();
+                    }
+                    return allRecords;
+                })
+                .catch(() => { allRecords = []; return allRecords; });
+        }
+
+        // =========================================================================
+        // QR Code Generation
+        // =========================================================================
+        function generateQR() {
+            let url = window.location.href;
+            
+            // Reemplazar localhost o 127.0.0.1 por la IP real de la red local
+            if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+                url = url.replace(window.location.hostname, "192.168.1.6");
+            }
+            
+            // Usamos la API de QR Server para generar la imagen
+            const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=1&data=" + encodeURIComponent(url);
+            
+            document.getElementById("qr-image").src = qrUrl;
+            document.getElementById("qr-url-text").textContent = url;
+            
+            // Mostrar modal
+            document.getElementById("qr-modal").classList.remove("hidden");
+        }
+
+        function closeQR() {
+            document.getElementById("qr-modal").classList.add("hidden");
+        }
+
+        function openSearch() {
+            document.getElementById("search-modal").classList.remove("hidden");
+            document.getElementById("search-input").value = "";
+            setTimeout(() => { document.getElementById("search-input").focus(); }, 50);
+            filterRecords();   // muestra de inmediato lo que ya hay en memoria
+            loadRecords();     // trae la version fresca y repinta al llegar
+        }
+
+        function closeSearch() {
+            document.getElementById("search-modal").classList.add("hidden");
+        }
+
+        // Normaliza texto para búsqueda: minúsculas y SIN tildes/diacríticos.
+        // "Calderón" -> "calderon", "MUÑOZ" -> "munoz" (la ñ se conserva como n).
+        function normalizarBusqueda(texto) {
+            return String(texto == null ? "" : texto)
+                .toLowerCase()
+                .normalize("NFD")                 // separa letra y tilde
+                .replace(/[̀-ͯ]/g, ""); // elimina los diacríticos
+        }
+
+        function filterRecords() {
+            const cont = document.getElementById("search-results");
+            cont.innerHTML = "";
+
+            // Dividir la búsqueda en palabras sueltas (tokens). Cada token debe
+            // aparecer en algún campo del registro (en cualquier orden). Así
+            // "carl cald" encuentra "CARLOS ROJAS CALDERON", ignorando tildes.
+            const tokens = normalizarBusqueda(document.getElementById("search-input").value)
+                .split(/\s+/).filter(t => t.length > 0);
+
+            const matches = allRecords.filter(r => {
+                if (tokens.length === 0) return true;
+                const heno = normalizarBusqueda(
+                    [r.id, r.nombre, r.cedula, r.empresa, r.ciudad].join(" "));
+                return tokens.every(t => heno.includes(t));
+            }).slice(0, 100);
+
+            document.getElementById("search-count").textContent = matches.length;
+
+            if (matches.length === 0) {
+                cont.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-8">Sin resultados</div>';
+                return;
+            }
+
+            matches.forEach(r => {
+                const row = document.createElement("button");
+                row.type = "button";
+                row.onclick = () => selectRecord(r.id);
+                row.className = "text-left p-3 rounded-xl bg-white/5 hover:bg-primary/10 border border-white/5 hover:border-primary/30 transition-all flex items-center justify-between gap-3";
+                row.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="text-sm font-semibold text-on-surface truncate">${escapeHtml(r.nombre || "(sin nombre)")}</div>
+                        <div class="text-xs text-on-surface-variant truncate">C.C. ${escapeHtml(r.cedula || "-")} · ${escapeHtml(r.empresa || "-")}</div>
+                    </div>
+                    <span class="text-xs font-bold text-primary bg-primary/10 rounded-full px-3 py-1 flex-shrink-0">ID ${escapeHtml(r.id)}</span>
+                `;
+                cont.appendChild(row);
+            });
+        }
+
+        function escapeHtml(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Cargar un registro al formulario y entrar en modo edición
+        function selectRecord(id) {
+            const rec = allRecords.find(r => String(r.id) === String(id));
+            if (!rec) return;
+            populateForm(rec);
+            closeSearch();
+            switchView(activeView);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        // Convierte una fecha almacenada (dd/mm/yyyy o similar) a ISO yyyy-mm-dd.
+        // Si no se puede interpretar, devuelve "" (el campo queda vacío y VBA
+        // conserva el valor original al guardar, gracias a skipEmpty).
+        function toISO(str) {
+            if (!str) return "";
+            const s = String(str).trim();
+            let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // dd/mm/yyyy
+            if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+            m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); // ya ISO
+            if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+            const d = new Date(s);
+            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+            return "";
+        }
+
+        function populateForm(rec) {
+            editingId = rec.id;
+            editingNombreOriginal = (rec.nombre || "").trim();
+
+            document.getElementById("part-nombre").value = rec.nombre || "";
+            document.getElementById("name-change-warning").classList.add("hidden");
+            document.getElementById("part-cedula").value = rec.cedula || "";
+            document.getElementById("part-categorias").value = rec.categorias || "";
+            document.getElementById("part-contacto").value = rec.contacto || "";
+            document.getElementById("part-multas").value = rec.multas || "No";
+            document.getElementById("part-observaciones").value = rec.observaciones || "";
+            document.getElementById("part-conclusiones").value = rec.conclusiones || "";
+
+            // Empresa: seleccionar si existe en el catálogo; si no, dejar y poner ciudad manual
+            const empSel = document.getElementById("part-empresa");
+            const exists = Array.from(empSel.options).some(o => o.value === rec.empresa);
+            if (!exists && rec.empresa) {
+                const opt = document.createElement("option");
+                opt.value = rec.empresa; opt.textContent = rec.empresa;
+                empSel.appendChild(opt);
+            }
+            empSel.value = rec.empresa || "";
+            const matched = empresasCatalog.find(i => i.nombre === rec.empresa);
+            document.getElementById("part-ciudad").value = matched ? matched.ciudad : (rec.ciudad || "");
+
+            // Fechas
+            document.getElementById("part-fecha").value = toISO(rec.fecha);
+            document.getElementById("part-vigencia-a2").value = toISO(rec.vigenciaA2);
+            document.getElementById("part-vigencia-b1").value = toISO(rec.vigenciaB1);
+
+            // Teoría
+            const th = { tecnicas: 1, normatividad: 2, epp: 3, mecanica: 4 };
+            Object.keys(th).forEach(k => {
+                const v = parseFloat(rec[k]);
+                theoryScores[k] = isNaN(v) ? 0 : v;
+                const input = document.getElementById(`score-teoricas-${th[k]}`);
+                input.value = isNaN(v) ? 0 : v;
+                handleRangeChange(th[k]);
+            });
+
+            // Práctica: booleanos de Excel ("True"/"Verdadero") o legado "✅" → 1
+            maneuversSpec.moto.forEach(m => practicalScores[m.key] = esAprobado(rec["m_" + m.key]) ? 1 : 0);
+            maneuversSpec.motocarro.forEach(m => practicalScores[m.key] = esAprobado(rec["m_" + m.key]) ? 1 : 0);
+            maneuversSpec.cuatrimoto.forEach(m => practicalScores[m.key] = esAprobado(rec["m_" + m.key]) ? 1 : 0);
+            maneuversSpec.carro.forEach(m => practicalScores[m.key] = esAprobado(rec["m_" + m.key]) ? 1 : 0);
+            renderManeuversList();
+
+            // Fotos: las subidas quedan en memoria solo si el usuario carga nuevas.
+            // Se limpian y luego se traen del disco las que ya existen (foto de
+            // perfil + evidencias) para mostrarlas al editar y en la vista previa.
+            uploadedImages = { profile: null, ev1: null, ev2: null, ev3: null, ev4: null };
+            cargarFotosDeDisco(rec.nombre);
+
+            setEditingUI();
+            updatePreviewData();
+            if (typeof goToStep === "function") goToStep(1);
+        }
+
+        // Trae del servidor las fotos guardadas en disco (EVIDENCIAS) para el
+        // participante dado y las muestra en el formulario y en la vista previa.
+        // Si una foto no existe, deja el placeholder correspondiente.
+        function cargarFotosDeDisco(nombre) {
+            const tipos = ["profile", "ev1", "ev2", "ev3", "ev4"];
+            tipos.forEach(t => {
+                // Elementos del formulario
+                const formImg = document.getElementById(`img-${t}-preview`);
+                const formPh = document.getElementById(`img-${t}-placeholder`);
+                // Elementos de la vista previa (el perfil usa otro id)
+                let repImg, repPh;
+                if (t === "profile") {
+                    repImg = document.getElementById("prev-profile-photo");
+                    repPh = document.getElementById("prev-profile-photo-ph");
+                } else {
+                    repImg = document.getElementById(`prev-img-${t}`);
+                    repPh = document.getElementById(`prev-img-${t}-ph`);
+                }
+
+                // Ocultar de inmediato para no dejar la foto del registro anterior
+                if (formImg && formPh) { formImg.classList.add("hidden"); formPh.classList.remove("hidden"); }
+                if (repImg && repPh) { repImg.classList.add("hidden"); repPh.classList.remove("hidden"); }
+
+                if (!nombre) return;
+                const url = "/foto?nombre=" + encodeURIComponent(nombre) +
+                            "&tipo=" + t + "&t=" + Date.now();
+
+                // Probar si la foto existe antes de asignarla
+                const probe = new Image();
+                probe.onload = () => {
+                    if (formImg && formPh) { formImg.src = url; formImg.classList.remove("hidden"); formPh.classList.add("hidden"); }
+                    if (repImg && repPh) { repImg.src = url; repImg.classList.remove("hidden"); repPh.classList.add("hidden"); }
+                };
+                // onerror (404): no hay foto, se queda el placeholder ya mostrado
+                probe.src = url;
+            });
+        }
+
+        // Refleja en la UI si estamos creando o editando
+        function setEditingUI() {
+            const saveBtn = document.getElementById("save-db-btn");
+            const saveText = saveBtn ? saveBtn.querySelector("span:not(.material-symbols-outlined)") : null;
+            const saveIcon = document.getElementById("save-icon");
+            const delBtn = document.getElementById("menu-delete-btn");
+            const cancelBtn = document.getElementById("menu-cancel-edit-btn");
+            
+            if (editingId !== null) {
+                if (saveText) saveText.textContent = "Actualizar ID " + editingId;
+                if (saveIcon) saveIcon.textContent = "save";
+                if (delBtn) delBtn.classList.remove("hidden");
+                if (cancelBtn) cancelBtn.classList.remove("hidden");
+            } else {
+                if (saveText) saveText.textContent = "Guardar en BD";
+                if (saveIcon) saveIcon.textContent = "cloud_upload";
+                if (delBtn) delBtn.classList.add("hidden");
+                if (cancelBtn) cancelBtn.classList.add("hidden");
+            }
+            if (typeof updateRecordNavIndicator === "function") {
+                updateRecordNavIndicator();
+            }
+        }
+
+        // Botón "Nuevo": salir del modo edición y limpiar
+        function nuevoRegistro() {
+            editingId = null;
+            editingNombreOriginal = null;
+            setEditingUI();
+            resetFormSilencioso();
+        }
+
+        // Eliminar el registro que se está editando. Pide doble confirmación por
+        // ser una acción destructiva. El servidor mueve las fotos a la papelera y
+        // Excel borra la fila de la BD.
+        function eliminarRegistro() {
+            if (editingId === null) return;
+            const nombre = (document.getElementById("part-nombre").value || "").trim() || "(sin nombre)";
+
+            const ok = confirm(
+                "⚠️ ELIMINAR REGISTRO\n\n" +
+                "ID " + editingId + " — " + nombre + "\n\n" +
+                "Se borrará el registro de la base de datos y sus fotos (perfil y " +
+                "evidencias) se moverán a la carpeta _PAPELERA dentro de EVIDENCIAS.\n\n" +
+                "¿Deseas continuar?");
+            if (!ok) return;
+            // Segunda confirmación explícita
+            if (!confirm("Esta acción no se puede deshacer desde la app.\n\n¿Eliminar definitivamente el registro ID " + editingId + "?")) return;
+
+            fetch("/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: editingId, nombre: nombre })
+            })
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.exito) {
+                    alert("🗑️ Registro enviado a eliminar.\n\nExcel borrará el ID " + editingId +
+                          " en unos segundos. Fotos movidas a papelera: " + (resData.fotos_movidas ?? 0) + ".");
+                    editingId = null;
+                    editingNombreOriginal = null;
+                    setEditingUI();
+                    resetFormSilencioso();
+                    setTimeout(loadRecords, 2500);
+                } else {
+                    alert("Error al eliminar: " + resData.error);
+                }
+            })
+            .catch(err => alert("Error de conexión al eliminar: " + err));
+        }
+
+        // Al escribir en el campo Nombre: refresca la preview y, si estamos
+        // editando y el nombre cambió, muestra la advertencia de renombrado.
+        function onNombreInput() {
+            updatePreviewData();
+            const warn = document.getElementById("name-change-warning");
+            const actual = document.getElementById("part-nombre").value.trim();
+            const cambio = (editingId !== null) && editingNombreOriginal !== null &&
+                           actual !== editingNombreOriginal;
+            warn.classList.toggle("hidden", !cambio);
+        }
+
+        // Switch View Tab (Form vs Preview)
+        function switchView(view) {
+            activeView = view;
+            const formBtn = document.getElementById("view-form-btn");
+            const prevBtn = document.getElementById("view-preview-btn");
+            const pill = document.getElementById("view-tab-pill");
+
+            if (formBtn && prevBtn && pill) {
+                if (view === "form") {
+                    pill.style.transform = "translateX(0)";
+                    formBtn.className = "relative z-10 w-[110px] sm:w-[130px] py-1.5 sm:py-2 text-xs md:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 justify-center text-primary";
+                    prevBtn.className = "relative z-10 w-[110px] sm:w-[130px] py-1.5 sm:py-2 text-xs md:text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2 justify-center text-on-surface-variant";
+                } else {
+                    const btnWidth = formBtn.offsetWidth;
+                    pill.style.transform = `translateX(${btnWidth}px)`;
+                    formBtn.className = "relative z-10 w-[110px] sm:w-[130px] py-1.5 sm:py-2 text-xs md:text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2 justify-center text-on-surface-variant";
+                    prevBtn.className = "relative z-10 w-[110px] sm:w-[130px] py-1.5 sm:py-2 text-xs md:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 justify-center text-primary";
+                }
+            }
+
+            // Sync Mobile Switcher Buttons
+            const mobFormBtn = document.getElementById("mobile-view-form-btn");
+            const mobPrevBtn = document.getElementById("mobile-view-preview-btn");
+            if (mobFormBtn && mobPrevBtn) {
+                if (view === "form") {
+                    mobFormBtn.className = "flex items-center justify-center gap-2 w-[140px] py-2.5 rounded-2xl transition-all duration-300 bg-surface-container shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] border border-transparent text-primary font-bold";
+                    mobPrevBtn.className = "flex items-center justify-center gap-2 w-[140px] py-2.5 rounded-2xl transition-all duration-300 text-on-surface-variant/70 font-semibold hover:text-on-surface";
+                } else {
+                    mobFormBtn.className = "flex items-center justify-center gap-2 w-[140px] py-2.5 rounded-2xl transition-all duration-300 text-on-surface-variant/70 font-semibold hover:text-on-surface";
+                    mobPrevBtn.className = "flex items-center justify-center gap-2 w-[140px] py-2.5 rounded-2xl transition-all duration-300 bg-surface-container shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] border border-transparent text-primary font-bold";
+                }
+            }
+
+            if (view === "preview") {
+                // Refresh preview
+                updatePreviewData();
+            }
+
+            // Adjust layout template columns depending on screen size and activeView
+            adjustLayout();
+        }
+
+        // Switch Vehicle Tab under Practical Evaluation
+        function switchVehicleTab(veh) {
+            activeVehicleTab = veh;
+            const tabs = ["moto", "motocarro", "cuatrimoto", "carro"];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`veh-tab-${t}`);
+                if (t === veh) {
+                    btn.className = "py-2 px-3 rounded-lg font-semibold text-sm transition-all mb-1 flex items-center justify-center gap-2 tab-btn-active";
+                } else {
+                    btn.className = "py-2 px-3 rounded-lg font-semibold text-sm transition-all mb-1 flex items-center justify-center gap-2 tab-btn-inactive";
+                }
+            });
+            // Re-render maneuvers
+            renderManeuversList();
+        }
+
+        // Render maneuvers list inside the form based on activeVehicleTab
+function renderManeuversList() {
+            const container = document.getElementById("maneuvers-container");
+            if (!container) return;
+            container.innerHTML = "";
+
+            const maneuvers = maneuversSpec[activeVehicleTab];
+            maneuvers.forEach(m => {
+                const score = practicalScores[m.key];
+                const isApproved = score === 1;
+                const isFailed = score === 0;
+
+                const itemDiv = document.createElement("div");
+                let stateClass = "";
+                if (isApproved) stateClass = "is-approved";
+                else if (isFailed) stateClass = "is-failed";
+
+                itemDiv.className = `maneuver-card flex items-center justify-between p-3 pl-4 rounded-xl ${stateClass}`;
+
+                const label = document.createElement("span");
+                label.className = "maneuver-card-title flex-1 pr-4";
+                label.textContent = m.label;
+
+                const btnGroup = document.createElement("div");
+                btnGroup.className = "flex gap-2.5 justify-end items-center";
+
+                // Approve Button
+                const appBtn = document.createElement("button");
+                appBtn.type = "button";
+                appBtn.onclick = () => setManeuverScore(m.key, 1);
+                appBtn.className = "maneuver-btn btn-approve bg-surface-container text-on-surface-variant border border-panel-border shadow-[3px_3px_6px_var(--panel-shadow-dark),_-3px_-3px_6px_var(--panel-shadow-light)] hover:opacity-80 active:scale-95";
+                appBtn.innerHTML = `<span class="material-symbols-outlined text-lg font-bold">check</span>`;
+                
+                // Fail Button
+                const failBtn = document.createElement("button");
+                failBtn.type = "button";
+                failBtn.onclick = () => setManeuverScore(m.key, 0);
+                failBtn.className = "maneuver-btn btn-fail bg-surface-container text-on-surface-variant border border-panel-border shadow-[3px_3px_6px_var(--panel-shadow-dark),_-3px_-3px_6px_var(--panel-shadow-light)] hover:opacity-80 active:scale-95";
+                failBtn.innerHTML = `<span class="material-symbols-outlined text-lg font-bold">close</span>`;
+
+                btnGroup.appendChild(appBtn);
+                btnGroup.appendChild(failBtn);
+                itemDiv.appendChild(label);
+                itemDiv.appendChild(btnGroup);
+                container.appendChild(itemDiv);
+            });
+        }
+
+        // Set maneuver score and update preview
+        function setManeuverScore(key, val) {
+            practicalScores[key] = val;
+            renderManeuversList();
+            updatePreviewData();
+        }
+
+        // Handle sliders/ranges input changes
+        function handleRangeChange(index) {
+            const input = document.getElementById(`score-teoricas-${index}`);
+            const valLabel = document.getElementById(`val-teoricas-${index}`);
+            let score = parseFloat(input.value).toFixed(1);
+            valLabel.textContent = score;
+
+            // Save to state
+            const keys = ["tecnicas", "normatividad", "epp", "mecanica"];
+            const key = keys[index - 1];
+            theoryScores[key] = parseFloat(score);
+
+            // Adjust slider color dynamically if score is low (relativo al máximo:
+            // por debajo del 70% del puntaje máximo del tema se marca en rojo)
+            if (parseFloat(score) / theoryMax[key] < 0.7) {
+                input.className = "w-full [&::-webkit-slider-thumb]:bg-error [&::-webkit-slider-thumb]:shadow-[0_0_12px_rgba(255,180,171,0.5)]";
+                valLabel.className = "font-display text-lg text-error drop-shadow-[0_0_5px_rgba(255,180,171,0.4)] font-bold";
+            } else {
+                input.className = "w-full";
+                valLabel.className = "font-display text-lg text-primary drop-shadow-[0_0_5px_rgba(78,222,163,0.4)] font-bold";
+            }
+
+            updatePreviewData();
+        }
+
+        // Handle templates insertions
+        function insertTemplate(type, index) {
+            if (type === 'obs') {
+                const textarea = document.getElementById("part-observaciones");
+                textarea.value = templates.obs[index];
+            } else if (type === 'concl') {
+                const textarea = document.getElementById("part-conclusiones");
+                textarea.value = templates.concl[index];
+            }
+            updatePreviewData();
+            if (typeof updateChipStatus === "function") {
+                updateChipStatus();
+            }
+        }
+
+        // Only allow numbers keypress
+        function isNumberKey(evt) {
+            const charCode = (evt.which) ? evt.which : evt.keyCode;
+            if (charCode > 31 && (charCode < 48 || charCode > 57)) return false;
+            return true;
+        }
+
+        // Populate catalogs from outside (VBA → Web)
+        function cargarCatalogos(catalogData) {
+            if (!catalogData || !Array.isArray(catalogData)) return;
+            empresasCatalog = catalogData;
+
+            const select = document.getElementById("part-empresa");
+            select.innerHTML = '<option value="">Seleccionar...</option>';
+            
+            catalogData.forEach(item => {
+                const opt = document.createElement("option");
+                opt.value = item.nombre;
+                opt.textContent = item.nombre;
+                select.appendChild(opt);
+            });
+        }
+
+        // Handle Empresa Dropdown selection -> autocomplete Ciudad
+        function handleEmpresaChange() {
+            const selectedEmpresaName = document.getElementById("part-empresa").value;
+            const ciudadInput = document.getElementById("part-ciudad");
+
+            if (!selectedEmpresaName) {
+                ciudadInput.value = "";
+                updatePreviewData();
+                return;
+            }
+
+            const matched = empresasCatalog.find(item => item.nombre === selectedEmpresaName);
+            if (matched) {
+                ciudadInput.value = matched.ciudad;
+            } else {
+                ciudadInput.value = "";
+            }
+            updatePreviewData();
+        }
+
+        // Recorte automático en canvas:
+        //  - Perfil: recorte centrado 1:1 → PNG 600x600 (el informe lo enmascara en círculo)
+        //  - Evidencias: recorte centrado 3:5 → JPG 600x1000 comprimido (peso bajo)
+        function cropImage(rawBase64, type, callback) {
+            const img = new Image();
+            img.onload = () => {
+                const isProfile = (type === 'profile');
+                const targetW = 600;
+                const targetH = isProfile ? 600 : 1000;
+                const targetRatio = targetW / targetH;
+
+                // Calcular el recorte centrado que respeta la proporción destino
+                let sw = img.width, sh = img.height, sx = 0, sy = 0;
+                if (img.width / img.height > targetRatio) {
+                    sw = img.height * targetRatio;
+                    sx = (img.width - sw) / 2;
+                } else {
+                    sh = img.width / targetRatio;
+                    sy = (img.height - sh) / 2;
+                }
+
+                const canvas = document.createElement("canvas");
+                canvas.width = targetW;
+                canvas.height = targetH;
+                canvas.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+
+                callback(isProfile
+                    ? canvas.toDataURL("image/png")
+                    : canvas.toDataURL("image/jpeg", 0.85));
+            };
+            img.onerror = () => alert("No se pudo procesar la imagen seleccionada.");
+            img.src = rawBase64;
+        }
+
+        // Selección de imagen: abre el picker, recorta automático y muestra preview
+        function selectImage(type) {
+            const fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.accept = "image/*";
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    cropImage(event.target.result, type, (base64) => {
+                    uploadedImages[type] = base64;
+                    
+                    // Update UI previews in form
+                    const previewImg = document.getElementById(`img-${type}-preview`);
+                    const placeholder = document.getElementById(`img-${type}-placeholder`);
+                    if (previewImg && placeholder) {
+                        previewImg.src = base64;
+                        previewImg.classList.remove("hidden");
+                        placeholder.classList.add("hidden");
+                    }
+                    
+                    // Update report previews
+                    const reportImg = document.getElementById(`prev-img-${type}`);
+                    const reportPlaceholder = document.getElementById(`prev-img-${type}-ph`);
+                    
+                    // Profile has a different ID format in preview
+                    if (type === 'profile') {
+                        const profImg = document.getElementById("prev-profile-photo");
+                        const profPH = document.getElementById("prev-profile-photo-ph");
+                        if (profImg && profPH) {
+                            profImg.src = base64;
+                            profImg.classList.remove("hidden");
+                            profPH.classList.add("hidden");
+                        }
+                    } else {
+                        if (reportImg && reportPlaceholder) {
+                            reportImg.src = base64;
+                            reportImg.classList.remove("hidden");
+                            reportPlaceholder.classList.add("hidden");
+                        }
+                    }
+                    }); // fin callback cropImage
+                };
+                reader.readAsDataURL(file);
+            };
+            fileInput.click();
+        }
+
+        // Scale preview A4 sheets dynamically to fit the width of mobile screens
+        function scalePreview() {
+            if (activeView !== "preview") return;
+            const wrappers = document.querySelectorAll('.preview-wrapper');
+            wrappers.forEach(wrapper => {
+                const page = wrapper.querySelector('.preview-page');
+                if (!page) return;
+                
+                // Temporarily reset inline styles to get accurate measurements
+                page.style.transform = 'none';
+                wrapper.style.height = 'auto';
+                wrapper.style.overflow = 'visible';
+                
+                const containerWidth = wrapper.clientWidth - 20; // 10px padding on each side
+                if (containerWidth < 800) {
+                    const scale = containerWidth / 800;
+                    page.style.transform = `scale(${scale})`;
+                    page.style.transformOrigin = 'top center';
+                    const pageHeight = page.offsetHeight || 1128;
+                    wrapper.style.height = (pageHeight * scale) + 'px';
+                    wrapper.style.overflow = 'hidden';
+                }
+            });
+        }
+
+        window.addEventListener("resize", scalePreview);
+
+        // Update all values inside the report preview (Pestaña 2)
+        function updatePreviewData() {
+            if (typeof updateChipStatus === "function") {
+                updateChipStatus();
+            }
+            // Update wizard helper stats
+            if (typeof updateWizardStepUI === "function") {
+                updateWizardStepUI();
+            }
+
+            // Performance optimization: skip DOM updates if the preview view is not active (only on mobile)
+            const isMobile = window.innerWidth < 1024;
+            if (isMobile && activeView !== "preview") {
+                return;
+            }
+
+            // Calculate current ID to show in preview
+            let currentIdShow = editingId;
+            if (currentIdShow === null) {
+                let nextId = 1;
+                if (allRecords.length > 0) {
+                    const ids = allRecords.map(r => parseInt(r.id)).filter(id => !isNaN(id));
+                    if (ids.length > 0) {
+                        nextId = Math.max(...ids) + 1;
+                    }
+                }
+                currentIdShow = nextId;
+            }
+            
+            const prevIdEl = document.getElementById("prev-id");
+            const prevId2El = document.getElementById("prev-id-2");
+            if (prevIdEl) prevIdEl.textContent = currentIdShow;
+            if (prevId2El) prevId2El.textContent = currentIdShow;
+
+            // Standard Inputs
+            document.getElementById("prev-name").textContent = document.getElementById("part-nombre").value || "NOMBRE COMPLETO";
+            
+            const cedulaVal = document.getElementById("part-cedula").value;
+            document.getElementById("prev-cedula").textContent = cedulaVal ? ("C.C. " + cedulaVal) : "C.C. (CÉDULA)";
+            
+            document.getElementById("prev-empresa").textContent = document.getElementById("part-empresa").value || "EMPRESA";
+            document.getElementById("prev-contacto").textContent = document.getElementById("part-contacto").value || "CONTACTO";
+            document.getElementById("prev-ciudad").textContent = document.getElementById("part-ciudad").value || "CIUDAD";
+            document.getElementById("prev-categorias").textContent = document.getElementById("part-categorias").value || "CATEGORÍAS";
+            
+            // Dates formatting
+            const testDate = document.getElementById("part-fecha").value;
+            if (testDate) {
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                const formattedDate = new Date(testDate).toLocaleDateString('es-ES', dateOptions);
+                document.getElementById("prev-date-top").textContent = formattedDate;
+                document.getElementById("prev-date-top-2").textContent = formattedDate;
+                
+                // Calculate and format Vigencia de prueba (1 year from test date)
+                const vigenciaDate = new Date(testDate);
+                vigenciaDate.setFullYear(vigenciaDate.getFullYear() + 1);
+                const day = String(vigenciaDate.getDate()).padStart(2, '0');
+                const month = String(vigenciaDate.getMonth() + 1).padStart(2, '0');
+                const year = vigenciaDate.getFullYear();
+                document.getElementById("prev-vigencia").textContent = `${day}/${month}/${year}`;
+            }
+
+            const licA2 = document.getElementById("part-vigencia-a2").value;
+            document.getElementById("prev-lic-moto").textContent = licA2 ? formatDate(licA2) : "26/08/2035";
+
+            const licB1 = document.getElementById("part-vigencia-b1").value;
+            document.getElementById("prev-lic-carro").textContent = licB1 ? formatDate(licB1) : "21/09/2026";
+
+            // Multas
+            const multasVal = document.getElementById("part-multas").value;
+            const multasPill = document.getElementById("prev-multas-val");
+            multasPill.textContent = multasVal;
+            if (multasVal === "No") {
+                multasPill.className = "px-3 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold inline-block";
+            } else if (multasVal === "Sí") {
+                multasPill.className = "px-3 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-bold inline-block";
+            } else {
+                multasPill.className = "px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold inline-block";
+            }
+
+            // Observations & Conclusions
+            document.getElementById("prev-observaciones-text").textContent = document.getElementById("part-observaciones").value || "Apto para el cargo en las categorias presentadas.";
+            document.getElementById("prev-conclusiones-text").textContent = document.getElementById("part-conclusiones").value || templates.concl[1];
+
+            // Update Theory Scores
+            document.getElementById("prev-val-1").textContent = theoryScores.tecnicas.toFixed(1);
+            document.getElementById("prev-val-2").textContent = theoryScores.normatividad.toFixed(1);
+            document.getElementById("prev-val-3").textContent = theoryScores.epp.toFixed(1);
+            document.getElementById("prev-val-4").textContent = theoryScores.mecanica.toFixed(1);
+
+            // Barras: ancho = puntaje / máximo del tema (EPP y Mecánica son sobre 5)
+            document.getElementById("prev-bar-1").style.width = (theoryScores.tecnicas / theoryMax.tecnicas * 100) + "%";
+            document.getElementById("prev-bar-2").style.width = (theoryScores.normatividad / theoryMax.normatividad * 100) + "%";
+            document.getElementById("prev-bar-3").style.width = (theoryScores.epp / theoryMax.epp * 100) + "%";
+            document.getElementById("prev-bar-4").style.width = (theoryScores.mecanica / theoryMax.mecanica * 100) + "%";
+
+            // Adjust bar colors if low score (umbral relativo al máximo del tema)
+            adjustPrevBarColor("prev-bar-1", theoryScores.tecnicas / theoryMax.tecnicas * 10);
+            adjustPrevBarColor("prev-bar-2", theoryScores.normatividad / theoryMax.normatividad * 10);
+            adjustPrevBarColor("prev-bar-3", theoryScores.epp / theoryMax.epp * 10);
+            adjustPrevBarColor("prev-bar-4", theoryScores.mecanica / theoryMax.mecanica * 10);
+
+            // === TEORÍA (igual que Excel: suma/30, aprueba si ≥ 80%) ===
+            const theorySum = theoryScores.tecnicas + theoryScores.normatividad + theoryScores.epp + theoryScores.mecanica;
+            const theoryRatio = theorySum / THEORY_TOTAL;           // 0..1
+            const theoryPassed = theoryRatio >= 0.8;
+            const theoryPct = Math.round(theoryRatio * 100) + "%";
+            document.getElementById("prev-avg-score").textContent = theoryPct;
+            document.getElementById("prev-pct-teoria").textContent = theoryPct;
+
+            const prevResTeoria = document.getElementById("prev-res-teoria");
+            if (theoryPassed) {
+                prevResTeoria.className = "px-3 py-0.5 rounded bg-green-100 text-green-800 font-bold text-[10px]";
+                prevResTeoria.textContent = "APROBADO";
+            } else {
+                prevResTeoria.className = "px-3 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px]";
+                prevResTeoria.textContent = "REPROBADO";
+            }
+
+            // === PRÁCTICA por vehículo (aprueba si ≥ 80% de maniobras ✅) ===
+            const pctCarro = renderPreviewManeuverCard("carro", "prev-man-list-carro", "prev-res-carro");
+            const pctMotocarro = renderPreviewManeuverCard("motocarro", "prev-man-list-motocarro", "prev-res-motocarro");
+            const pctCuatrimoto = renderPreviewManeuverCard("cuatrimoto", "prev-man-list-cuatrimoto", "prev-res-cuatrimoto");
+            const pctMoto = renderPreviewManeuverCard("moto", "prev-man-list-moto", "prev-res-moto");
+
+            // === RESULTADO GENERAL (igual que Datos!M11) ===
+            // 1) Si CUALQUIER vehículo reprueba (<80%) -> REPROBADO.
+            // 2) Si todos aprueban -> ponderado = práctica*60% + teoría*40% >= 80%.
+            const algunVehiculoReprueba =
+                pctCarro < 0.8 || pctMotocarro < 0.8 || pctCuatrimoto < 0.8 || pctMoto < 0.8;
+            const practiceAvg = (pctMotocarro + pctCuatrimoto + pctCarro + pctMoto) / 4; // Datos!M19
+            const ponderado = practiceAvg * 0.6 + theoryRatio * 0.4;                     // Datos!M21
+            const isGeneralApproved = !algunVehiculoReprueba && ponderado >= 0.8;
+
+            const generalPill = document.getElementById("prev-res-general");
+            if (generalPill) {
+                if (isGeneralApproved) {
+                    generalPill.className = "px-8 py-2 rounded-lg bg-green-600 text-white font-bold text-sm tracking-wide shadow-sm";
+                    generalPill.textContent = "APROBADO";
+                } else {
+                    generalPill.className = "px-8 py-2 rounded-lg bg-red-600 text-white font-bold text-sm tracking-wide shadow-sm";
+                    generalPill.textContent = "REPROBADO";
+                }
+            }
+        }
+
+        // Render preview vehicle cards with maneuvers and Aprobado/Reprobado status.
+        // Devuelve el porcentaje de maniobras aprobadas (0..1). El vehículo aprueba
+        // si ese porcentaje es >= 80% (igual que la hoja Datos).
+        function renderPreviewManeuverCard(vehicleType, containerId, statusId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+            const maneuvers = maneuversSpec[vehicleType];
+
+            let aprobadas = 0;
+            maneuvers.forEach(m => {
+                const passed = practicalScores[m.key] === 1;
+                if (passed) aprobadas++;
+
+                const li = document.createElement("li");
+                li.className = "flex justify-between items-center";
+                li.innerHTML = `
+                    <span>${m.label.split(" ").slice(0, 3).join(" ")}</span>
+                    <span class="${passed ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}">${passed ? '✅' : '❌'}</span>
+                `;
+                container.appendChild(li);
+            });
+
+            const pct = maneuvers.length ? (aprobadas / maneuvers.length) : 0;
+            const vehiculoAprueba = pct >= 0.8;
+
+            const statusLabel = document.getElementById(statusId);
+            if (vehiculoAprueba) {
+                statusLabel.textContent = "APROBADO";
+                statusLabel.className = "bg-slate-50 border-t border-slate-100 p-2 text-center font-bold text-[11px] text-green-600 uppercase";
+            } else {
+                statusLabel.textContent = "REPROBADO";
+                statusLabel.className = "bg-slate-50 border-t border-slate-100 p-2 text-center font-bold text-[11px] text-red-600 uppercase";
+            }
+            return pct;
+        }
+
+        // Format Date picker output to DD/MM/YYYY
+        function formatDate(dateStr) {
+            const parts = dateStr.split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            return dateStr;
+        }
+
+        // Adjust class properties of preview progress bars based on score threshold
+        function adjustPrevBarColor(barId, score) {
+            const bar = document.getElementById(barId);
+            if (score < 7.0) {
+                bar.className = "h-full bg-red-500";
+            } else if (score < 8.5) {
+                bar.className = "h-full bg-amber-500";
+            } else {
+                bar.className = "h-full bg-green-500";
+            }
+        }
+
+        // Botón "Limpiar Formulario": confirma, sale de edición y limpia todo
+        function resetForm() {
+            if (confirm("¿Está seguro de que desea limpiar el formulario? Se perderán todos los datos no guardados.")) {
+                editingId = null;
+                setEditingUI();
+                resetFormSilencioso();
+            }
+        }
+
+        // Limpieza de campos sin confirmación (reutilizable)
+        function resetFormSilencioso() {
+                document.getElementById("part-nombre").value = "";
+                document.getElementById("part-cedula").value = "";
+                document.getElementById("part-empresa").value = "";
+                document.getElementById("part-ciudad").value = "";
+                document.getElementById("part-categorias").value = "";
+                document.getElementById("part-contacto").value = "";
+                document.getElementById("part-observaciones").value = "";
+                document.getElementById("part-conclusiones").value = "";
+                document.getElementById("part-multas").value = "No";
+
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById("part-fecha").value = today;
+                document.getElementById("part-vigencia-a2").value = "";
+                document.getElementById("part-vigencia-b1").value = "";
+
+                // Reset sliders al máximo de cada tema (Técnicas/Normatividad=10, EPP/Mecánica=5)
+                const maxPorTema = [theoryMax.tecnicas, theoryMax.normatividad, theoryMax.epp, theoryMax.mecanica];
+                for (let i = 1; i <= 4; i++) {
+                    const input = document.getElementById(`score-teoricas-${i}`);
+                    input.value = maxPorTema[i - 1];
+                    handleRangeChange(i);
+                }
+
+                // Reset practicals to approved
+                Object.keys(practicalScores).forEach(key => {
+                    practicalScores[key] = 1;
+                });
+                renderManeuversList();
+
+                // Reset images
+                uploadedImages = { profile: null, ev1: null, ev2: null, ev3: null, ev4: null };
+                const types = ["profile", "ev1", "ev2", "ev3", "ev4"];
+                types.forEach(t => {
+                    const prevImg = document.getElementById(`img-${t}-preview`);
+                    const placeholder = document.getElementById(`img-${t}-placeholder`);
+                    if (prevImg && placeholder) {
+                        prevImg.src = "";
+                        prevImg.classList.add("hidden");
+                        placeholder.classList.remove("hidden");
+                    }
+                    // Reset preview tabs images
+                    if (t === 'profile') {
+                        document.getElementById("prev-profile-photo").src = "";
+                        document.getElementById("prev-profile-photo").classList.add("hidden");
+                        document.getElementById("prev-profile-photo-ph").classList.remove("hidden");
+                    } else {
+                        document.getElementById(`prev-img-${t}`).src = "";
+                        document.getElementById(`prev-img-${t}`).classList.add("hidden");
+                        document.getElementById(`prev-img-${t}-ph`).classList.remove("hidden");
+                    }
+                });
+
+                updatePreviewData();
+                if (typeof goToStep === "function") goToStep(1);
+        }
+
+        // =========================================================================
+        // puente de comunicación (WebView2 ↔ VBA)
+        // =========================================================================
+
+        // Save data message to VBA
+        function saveToDatabase() {
+            // Validation
+            const nombre = document.getElementById("part-nombre").value.trim();
+            const cedula = document.getElementById("part-cedula").value.trim();
+            const empresa = document.getElementById("part-empresa").value;
+            const categorias = document.getElementById("part-categorias").value.trim();
+            const observaciones = document.getElementById("part-observaciones").value.trim();
+            const conclusiones = document.getElementById("part-conclusiones").value.trim();
+
+            if (!nombre || !cedula || !empresa || !categorias || !observaciones || !conclusiones) {
+                alert("Por favor, complete los campos obligatorios del Participante, Observaciones y Conclusiones antes de guardar.");
+                return;
+            }
+
+            // Confirm changes before saving
+            const changesText = getChangesSummary();
+            if (!confirm(`¿Está seguro de guardar los cambios?\n\n${changesText}`)) {
+                return;
+            }
+
+            // Spinner Loading state
+            const saveBtn = document.getElementById("save-db-btn");
+            const spinner = document.getElementById("save-spinner");
+            const saveIcon = document.getElementById("save-icon");
+            
+            saveBtn.disabled = true;
+            spinner.classList.remove("hidden");
+            saveIcon.classList.add("hidden");
+
+            // Build payload containing the exact 41 columns structure
+            const payload = {
+                // Modo: editar (actualiza el ID) o nuevo (inserta)
+                modo: editingId !== null ? "editar" : "nuevo",
+                id: editingId !== null ? editingId : "",
+                // Nombre con el que se cargó el registro; el servidor lo usa para
+                // renombrar las fotos si el nombre cambió durante la edición.
+                nombre_original: editingNombreOriginal || "",
+
+                nombre: nombre,
+                cedula: cedula,
+                empresa: empresa,
+                categorias: categorias,
+                contacto: document.getElementById("part-contacto").value.trim(),
+                ciudad: document.getElementById("part-ciudad").value,
+                fecha: formatDate(document.getElementById("part-fecha").value),
+                vigenciaA2: document.getElementById("part-vigencia-a2").value ? formatDate(document.getElementById("part-vigencia-a2").value) : "",
+                vigenciaB1: document.getElementById("part-vigencia-b1").value ? formatDate(document.getElementById("part-vigencia-b1").value) : "",
+                multas: document.getElementById("part-multas").value,
+                
+                // Theory scores (0-10)
+                tecnicas: theoryScores.tecnicas,
+                normatividad: theoryScores.normatividad,
+                epp: theoryScores.epp,
+                mecanica: theoryScores.mecanica,
+
+                // Practical score check strings ("✅" or "❌")
+                m_proyeccion_moto: getCheckStr(practicalScores.proyeccion_moto),
+                m_equilibrio: getCheckStr(practicalScores.equilibrio),
+                m_parqueo_moto: getCheckStr(practicalScores.parqueo_moto),
+                m_tecnica_apagado: getCheckStr(practicalScores.tecnica_apagado),
+
+                m_habilidades_motocarro: getCheckStr(practicalScores.habilidades_motocarro),
+                m_proyeccion_motocarro: getCheckStr(practicalScores.proyeccion_motocarro),
+                m_parqueo_motocarro: getCheckStr(practicalScores.parqueo_motocarro),
+                m_velocidad_motocarro: getCheckStr(practicalScores.velocidad_motocarro),
+                m_visoespacial_motocarro: getCheckStr(practicalScores.visoespacial_motocarro),
+                m_espejos_motocarro: getCheckStr(practicalScores.espejos_motocarro),
+
+                m_habilidades_cuatrimoto: getCheckStr(practicalScores.habilidades_cuatrimoto),
+                m_proyeccion_cuatrimoto: getCheckStr(practicalScores.proyeccion_cuatrimoto),
+                m_parqueo_cuatrimoto: getCheckStr(practicalScores.parqueo_cuatrimoto),
+                m_velocidad_cuatrimoto: getCheckStr(practicalScores.velocidad_cuatrimoto),
+                m_visoespacial_cuatrimoto: getCheckStr(practicalScores.visoespacial_cuatrimoto),
+                m_espejos_cuatrimoto: getCheckStr(practicalScores.espejos_cuatrimoto),
+
+                m_habilidades_carro: getCheckStr(practicalScores.habilidades_carro),
+                m_proyeccion_carro: getCheckStr(practicalScores.proyeccion_carro),
+                m_parqueo_carro: getCheckStr(practicalScores.parqueo_carro),
+                m_velocidad_carro: getCheckStr(practicalScores.velocidad_carro),
+                m_visoespacial_carro: getCheckStr(practicalScores.visoespacial_carro),
+                m_espejos_carro: getCheckStr(practicalScores.espejos_carro),
+
+                observaciones: observaciones,
+                conclusiones: conclusiones,
+                
+                // Base64 Image files
+                imagenes: uploadedImages
+            };
+
+            // Send payload to Python bridge server
+            fetch("/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ datos: payload })
+            })
+            .then(res => res.json())
+            .then(resData => {
+                saveBtn.disabled = false;
+                spinner.classList.add("hidden");
+                saveIcon.classList.remove("hidden");
+
+                if (resData.exito) {
+                    const eraEdicion = (editingId !== null);
+                    alert(eraEdicion
+                        ? "✅ Cambios enviados al puente.\n\nExcel actualizará el registro ID " + editingId + " en unos segundos."
+                        : "✅ Datos y fotos enviados al puente.\n\nExcel registrará la prueba en unos segundos y mostrará su propia confirmación con el ID asignado.");
+
+                    // Salir del modo edición y limpiar para el siguiente
+                    editingId = null;
+                    setEditingUI();
+                    resetFormSilencioso();
+                    // Refrescar la lista de registros (Excel ya reexportó el JSON)
+                    setTimeout(loadRecords, 2500);
+                } else {
+                    alert("Error al procesar los datos: " + resData.error);
+                }
+            })
+            .catch(err => {
+                saveBtn.disabled = false;
+                spinner.classList.add("hidden");
+                saveIcon.classList.remove("hidden");
+                alert("Error de conexión con el servidor puente: " + err);
+            });
+        }
+
+        // Imprimir / Guardar PDF desde el HTML: muestra la vista previa y abre el
+        // diálogo de impresión del navegador. El CSS @media print deja solo el
+        // informe (idéntico a la preview), una hoja por página A4.
+        function printPreview() {
+            // Asegurar que la preview esté visible y con datos frescos
+            switchView("preview");
+            updatePreviewData();
+            // Pequeña pausa para que las imágenes/estilos terminen de pintar
+            setTimeout(() => { window.print(); }, 350);
+        }
+
+        // Trigger Print PDF report in VBA via Python server
+        function triggerPrintPDF() {
+            fetch("/print", { method: "POST" })
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.exito) {
+                    alert("Comando de impresión enviado. Excel generará el PDF.");
+                } else {
+                    alert("Error al enviar comando de impresión: " + resData.error);
+                }
+            })
+            .catch(err => {
+                alert("Error al conectar con el servidor para imprimir: " + err);
+            });
+        }
+
+        // Convierte 1/0 al texto que VBA escribe como Boolean real (VERDADERO/FALSO
+        // en Excel), necesario para los checkboxes del informe.
+        function getCheckStr(val) {
+            return val === 1 ? "VERDADERO" : "FALSO";
+        }
+
+        // Interpreta el valor que viene de la BD como aprobado/reprobado
+        function esAprobado(v) {
+            const s = String(v == null ? "" : v).trim().toUpperCase();
+            return s === "TRUE" || s === "VERDADERO" || s === "1" || s === "✅";
+        }
+
+    </script>
+    <script src="js/integracion.js"></script>
+</body>
+</html>
