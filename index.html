@@ -1640,16 +1640,16 @@
 <!-- Interactive Logic Script -->
     <script>
         // Global variables and configuration
-        let activeView = "form";
-        let activeVehicleTab = "moto";
-        let activeStep = 1;
+        var activeView = "form";
+        var activeVehicleTab = "moto";
+        var activeStep = 1;
 
         // Registros existentes (para buscar/editar) y modo de edición
-        let allRecords = [];
-        let editingId = null;   // null = creando nuevo; número = editando ese ID
-        let editingNombreOriginal = null; // nombre con el que se cargó el registro (para renombrar fotos)
+        var allRecords = [];
+        var editingId = null;   // null = creando nuevo; número = editando ese ID
+        var editingNombreOriginal = null; // nombre con el que se cargó el registro (para renombrar fotos)
 
-        let empresasCatalog = [];
+        var empresasCatalog = [];
         let participantData = {
             id: 28,
             nombre: "",
@@ -1671,7 +1671,7 @@
         // El total posible es 30 puntos.
         const theoryMax = { tecnicas: 10, normatividad: 10, epp: 5, mecanica: 5 };
         const THEORY_TOTAL = 30; // = suma de theoryMax
-        let theoryScores = {
+        var theoryScores = {
             tecnicas: 10.0,
             normatividad: 10.0,
             epp: 5.0,
@@ -1713,7 +1713,7 @@
         };
 
         // User practical scores selections. Initiated as Approved (1 = approved, 0 = reproved)
-        let practicalScores = {};
+        var practicalScores = {};
         Object.keys(maneuversSpec).forEach(veh => {
             maneuversSpec[veh].forEach(m => {
                 practicalScores[m.key] = 1; // Default to Approved
@@ -1721,7 +1721,7 @@
         });
 
         // Image files base64 state
-        let uploadedImages = {
+        var uploadedImages = {
             profile: null,
             ev1: null,
             ev2: null,
