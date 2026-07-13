@@ -450,5 +450,11 @@
     });
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+
+    // Almacenamiento persistente: evita que el sistema borre IndexedDB (registros y
+    // fotos pendientes) si el teléfono se queda corto de espacio. Crítico offline.
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(function () {});
+    }
   });
 })();
