@@ -1966,6 +1966,15 @@
                 } else {
                     formCont.style.display = "none";
                     prevCont.style.display = "block";
+
+                    // La hoja del informe mide 800px fijos: hay que escalarla para que
+                    // quepa en la pantalla. Sin estas llamadas se veía cortada y solo
+                    // se acomodaba al bloquear/desbloquear el teléfono (eso dispara
+                    // "resize", el único disparador que existía en móvil).
+                    requestAnimationFrame(scalePreview);
+                    setTimeout(scalePreview, 100);
+                    setTimeout(scalePreview, 300);
+                    setTimeout(scalePreview, 500);
                 }
             } else {
                 // Desktop: smooth animated layout transition managed by CSS classes
@@ -2890,6 +2899,7 @@ function renderManeuversList() {
                 wrapper.style.overflow = 'visible';
                 
                 const containerWidth = wrapper.clientWidth - 20; // 10px padding on each side
+                if (containerWidth <= 0) return; // vista oculta: medida inválida, no escalar
                 if (containerWidth < 800) {
                     const scale = containerWidth / 800;
                     page.style.transform = `scale(${scale})`;
@@ -2897,6 +2907,10 @@ function renderManeuversList() {
                     const pageHeight = page.offsetHeight || 1128;
                     wrapper.style.height = (pageHeight * scale) + 'px';
                     wrapper.style.overflow = 'hidden';
+                    // La caja de la hoja sigue midiendo 800px aunque se vea escalada:
+                    // si algo la desplaza (scrollIntoView, etc.) el usuario no podría
+                    // volver, porque overflow:hidden le impide arrastrar de vuelta.
+                    wrapper.scrollLeft = 0;
                 }
             });
         }
@@ -3342,5 +3356,6 @@ function renderManeuversList() {
 
     </script>
     <script src="js/integracion.js"></script>
+    <script src="js/preview-fit.js"></script>
 </body>
 </html>
