@@ -17,11 +17,15 @@
 
     // Mismas medidas que cropImage() en index.html: no cambiar sin cambiar aquella
     var DESTINO = {
-        profile: { w: 600, h: 600, formato: 'image/png', calidad: undefined, redondo: true },
+        profile: { w: 600, h: 600, formato: 'image/jpeg', calidad: 0.9, redondo: true },
         evid: { w: 600, h: 1000, formato: 'image/jpeg', calidad: 0.85, redondo: false }
     };
 
     var stream = null, capa = null, video = null, camaraFrontal = false, tipoActual = null;
+
+    // Marcador de versión: sirve para comprobar desde consola qué copia del
+    // archivo está sirviendo el Service Worker cuando algo no cuadra.
+    window.CamaraInfo = { formatoPerfil: DESTINO.profile.formato, calidadPerfil: DESTINO.profile.calidad };
 
     function destinoDe(tipo) { return tipo === 'profile' ? DESTINO.profile : DESTINO.evid; }
 

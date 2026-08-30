@@ -3,12 +3,12 @@
  * Fuentes de Google: caché en tiempo de ejecución (para que los íconos y
  * tipografías también funcionen sin conexión tras la primera visita).
  * Las llamadas a la API de Apps Script van solo por red; Sync maneja la cola. */
-var VERSION = 'appinf-v7';
+var VERSION = 'appinf-v8';
 var SHELL = [
   './', 'index.html', 'manifest.json', 'tailwind.js',
   'js/esquema-default.js', 'js/aprobacion.js', 'js/db.js', 'js/api.js',
   'js/sync.js', 'js/integracion.js', 'js/preview-fit.js',
-  'js/menu-gooey.js', 'js/camara.js',
+  'js/menu-gooey.js', 'js/camara.js', 'js/zoom-informe.js', 'js/salida.js',
   'img/firma-valentina-ochoa.png', 'img/firma-mario-cordoba.png',
   'icons/icon-192.png', 'icons/icon-512.png'
 ];

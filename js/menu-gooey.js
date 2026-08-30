@@ -1,101 +1,140 @@
-/* Menú flotante "+" con efecto gooey (metaballs) para la barra inferior móvil.
+/* Menú flotante "+" con efecto gooey (metaballs) y niveles.
  *
- * La idea del efecto es la misma que usa la librería liquid-gooey de React
- * (blur + contraste alto para que dos círculos se fundan al acercarse), pero
- * escrita en CSS/JS puro: esta app no usa React ni bundler, así que la
- * librería no se puede importar.
+ * El efecto es el de la librería liquid-gooey de React, pero en CSS/JS puro:
+ * esta app no usa React ni bundler, así que la librería no se puede importar.
  *
- * Diferencia importante con el truco de `filter: blur() contrast()`:
- * ese contraste se aplica también al COLOR y destruye la paleta (el amarillo
- * #f5ab1a saldría amarillo puro). Aquí se usa un filtro SVG que sube el
- * contraste SOLO del canal alfa (la fila `0 0 0 18 -7` de feColorMatrix), así
- * que los colores de la app se respetan tal cual.
+ * Dos decisiones importantes:
  *
- * Los íconos van en una capa aparte SIN filtrar: si estuvieran dentro del
- * filtro saldrían borrosos.
+ * 1) El filtro NO es `blur() + contrast()`. Ese truco sube el contraste del
+ *    COLOR y destroza la paleta (el amarillo #f5ab1a saldría #ffff00). Aquí se
+ *    usa un filtro SVG que sube el contraste solo del canal ALFA, así que los
+ *    colores quedan intactos. El filtro vive en el HTML (#goo-filtro).
+ *
+ * 2) Cada botón lleva SU PROPIO círculo de fondo, además del blob que está
+ *    detrás. Si el navegador no resuelve el filtro SVG, el menú sigue viéndose
+ *    como botones redondos normales en vez de desaparecer. El goo es un extra,
+ *    no un requisito.
+ *
+ * Estructura por niveles: el primer nivel son 3 categorías; al tocar una, los
+ * satélites se transforman en las acciones de esa categoría y el botón central
+ * pasa a ser "volver".
  */
 (function () {
     'use strict';
 
-    // x, y en píxeles respecto al botón principal; retardo del rebote en ms
-    var ACCIONES = [
-        { icono: 'search',      etiqueta: 'Buscar',  x: -66, y: 0,   retardo: 0,  fn: 'openSearch' },
-        { icono: 'add',         etiqueta: 'Nuevo',   x: -47, y: -47, retardo: 45, fn: 'nuevoRegistro' },
-        { icono: 'save',        etiqueta: 'Guardar', x: 0,   y: -66, retardo: 90, fn: 'saveToDatabase' }
-    ];
+    var MENU = {
+        raiz: [
+            { icono: 'edit_note',   etiqueta: 'Registro', hijos: 'registro' },
+            { icono: 'search',      etiqueta: 'Buscar',   hijos: 'buscar' },
+            { icono: 'description', etiqueta: 'Informe',  hijos: 'informe' }
+        ],
+        registro: [
+            { icono: 'note_add',    etiqueta: 'Nuevo',    fn: 'nuevoRegistro' },
+            { icono: 'save',        etiqueta: 'Guardar',  fn: 'saveToDatabase' },
+            { icono: 'mop',         etiqueta: 'Limpiar',  fn: 'resetForm' }
+        ],
+        buscar: [
+            { icono: 'manage_search',  etiqueta: 'Buscar registro', fn: 'openSearch' },
+            { icono: 'chevron_left',   etiqueta: 'Anterior',        fn: 'navigateRecords', arg: -1 },
+            { icono: 'chevron_right',  etiqueta: 'Siguiente',       fn: 'navigateRecords', arg: 1 }
+        ],
+        informe: [
+            { icono: 'visibility',  etiqueta: 'Vista previa', fn: 'switchView', arg: 'preview' },
+            { icono: 'print',       etiqueta: 'Imprimir PDF', fn: 'printPreview' },
+            { icono: 'qr_code_2',   etiqueta: 'Compartir',    fn: 'generateQR' }
+        ]
+    };
 
+    var SEPARACION = 64;   // px entre satélites apilados hacia arriba
     var abierto = false;
+    var nivel = 'raiz';
     var raiz = null;
 
-    function llamar(nombre) {
-        var f = window[nombre];
-        if (typeof f === 'function') { f(); return true; }
-        console.warn('[menu-gooey] no existe la función', nombre);
-        return false;
+    function llamar(item) {
+        var f = window[item.fn];
+        if (typeof f !== 'function') { console.warn('[menu-gooey] falta la función', item.fn); return; }
+        if (typeof item.arg !== 'undefined') f(item.arg); else f();
+    }
+
+    function pintarNivel() {
+        var items = MENU[nivel] || MENU.raiz;
+        var blobs = raiz.querySelectorAll('.goo-blob:not(.goo-blob-principal)');
+        var btns = raiz.querySelectorAll('.goo-btn:not(.goo-principal)');
+
+        for (var i = 0; i < btns.length; i++) {
+            var it = items[i];
+            var b = btns[i];
+            if (!it) { b.style.display = 'none'; blobs[i].style.display = 'none'; continue; }
+            b.style.display = ''; blobs[i].style.display = '';
+            b.querySelector('.material-symbols-outlined').textContent = it.icono;
+            b.querySelector('.goo-etiqueta').textContent = it.etiqueta;
+            b.setAttribute('aria-label', it.etiqueta);
+            b.__item = it;
+        }
+
+        var principal = raiz.querySelector('.goo-principal .material-symbols-outlined');
+        principal.textContent = (nivel === 'raiz') ? 'add' : 'arrow_back';
+        raiz.classList.toggle('goo-en-submenu', nivel !== 'raiz');
     }
 
     function alternar(forzar) {
         abierto = (typeof forzar === 'boolean') ? forzar : !abierto;
+        if (!abierto) nivel = 'raiz';
+        pintarNivel();
         raiz.classList.toggle('goo-abierto', abierto);
-        var principal = raiz.querySelector('.goo-principal');
-        principal.setAttribute('aria-expanded', abierto ? 'true' : 'false');
-        principal.setAttribute('aria-label', abierto ? 'Cerrar acciones' : 'Acciones rápidas');
+        var p = raiz.querySelector('.goo-principal');
+        p.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    }
+
+    /** Cierra un paso: del submenú vuelve a la raíz; de la raíz cierra el menú.
+     *  Lo usa también el botón atrás del teléfono (js/salida.js). */
+    function retroceder() {
+        if (!abierto) return false;
+        if (nivel !== 'raiz') { nivel = 'raiz'; pintarNivel(); return true; }
+        alternar(false);
+        return true;
     }
 
     function construir() {
         if (document.getElementById('goo-menu')) return;
 
-        // Filtro SVG (invisible) que produce la fusión entre círculos
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', 'goo-svg');
-        svg.setAttribute('aria-hidden', 'true');
-        svg.innerHTML =
-            '<defs><filter id="goo-filtro">' +
-            '<feGaussianBlur in="SourceGraphic" stdDeviation="7" result="difuminado"/>' +
-            '<feColorMatrix in="difuminado" mode="matrix" ' +
-            'values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo"/>' +
-            '<feComposite in="SourceGraphic" in2="goo" operator="atop"/>' +
-            '</filter></defs>';
-        document.body.appendChild(svg);
-
         raiz = document.createElement('div');
         raiz.id = 'goo-menu';
         raiz.className = 'goo-menu';
 
-        var capaBlobs = document.createElement('div');
-        capaBlobs.className = 'goo-capa';
-        capaBlobs.setAttribute('aria-hidden', 'true');
+        var capa = document.createElement('div');
+        capa.className = 'goo-capa';
+        capa.setAttribute('aria-hidden', 'true');
 
-        var capaBotones = document.createElement('div');
-        capaBotones.className = 'goo-botones';
+        var botones = document.createElement('div');
+        botones.className = 'goo-botones';
 
-        ACCIONES.forEach(function (a) {
-            var estilo = '--goo-x:' + a.x + 'px; --goo-y:' + a.y + 'px; --goo-retardo:' + a.retardo + 'ms;';
+        for (var i = 0; i < 3; i++) {
+            var estilo = '--goo-y:' + (-(SEPARACION * (i + 1))) + 'px; --goo-retardo:' + (i * 45) + 'ms;';
 
             var blob = document.createElement('span');
             blob.className = 'goo-blob';
             blob.setAttribute('style', estilo);
-            capaBlobs.appendChild(blob);
+            capa.appendChild(blob);
 
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'goo-btn';
             btn.setAttribute('style', estilo);
-            btn.setAttribute('aria-label', a.etiqueta);
-            btn.title = a.etiqueta;
-            btn.innerHTML = '<span class="material-symbols-outlined">' + a.icono + '</span>';
+            btn.innerHTML = '<span class="goo-etiqueta"></span><span class="material-symbols-outlined"></span>';
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                alternar(false);
-                llamar(a.fn);
+                var it = this.__item;
+                if (!it) return;
+                if (it.hijos) { nivel = it.hijos; pintarNivel(); }   // bajar de nivel
+                else { alternar(false); llamar(it); }
             });
-            capaBotones.appendChild(btn);
-        });
+            botones.appendChild(btn);
+        }
 
-        // Blob y botón principal (siempre visibles)
         var blobP = document.createElement('span');
         blobP.className = 'goo-blob goo-blob-principal';
-        capaBlobs.appendChild(blobP);
+        capa.appendChild(blobP);
 
         var principal = document.createElement('button');
         principal.type = 'button';
@@ -103,16 +142,22 @@
         principal.setAttribute('aria-label', 'Acciones rápidas');
         principal.setAttribute('aria-expanded', 'false');
         principal.innerHTML = '<span class="material-symbols-outlined">add</span>';
-        principal.addEventListener('click', function (e) { e.stopPropagation(); alternar(); });
-        capaBotones.appendChild(principal);
+        principal.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (abierto && nivel !== 'raiz') { nivel = 'raiz'; pintarNivel(); }  // volver
+            else alternar();
+        });
+        botones.appendChild(principal);
 
-        raiz.appendChild(capaBlobs);
-        raiz.appendChild(capaBotones);
+        raiz.appendChild(capa);
+        raiz.appendChild(botones);
         document.body.appendChild(raiz);
+        pintarNivel();
 
-        // Cerrar al tocar fuera o con Escape
         document.addEventListener('click', function () { if (abierto) alternar(false); });
-        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && abierto) alternar(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') retroceder(); });
+
+        window.MenuGooey = { retroceder: retroceder, estaAbierto: function () { return abierto; } };
     }
 
     if (document.readyState === 'loading') {
