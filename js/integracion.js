@@ -118,12 +118,55 @@
   // ============================================================
   // OVERRIDE: loadRecords — antes fetch("/data"), ahora IndexedDB
   // ============================================================
+  /* NÚMERO DE INFORME (el "28" que sale impreso arriba a la derecha).
+   *
+   * Antes era la POSICIÓN del servicio en una lista ordenada por updatedAt. Eso
+   * significaba que el número cambiaba cada vez que editabas cualquier registro,
+   * y que el mismo informe salía con un número distinto en el PC y en el móvil.
+   * Para un documento que se entrega al cliente eso no vale.
+   *
+   * Ahora el número es del servicio, no de su posición:
+   *   1. Los 30 migrados lo sacan de su propio uuid (excel-0029 -> 29), que es
+   *      justo la numeración que Mario ya tenía en Excel.
+   *   2. Los creados por la app lo llevan guardado dentro de evaluacion.folio,
+   *      así que viaja con el registro y es el mismo en todos los dispositivos.
+   *   3. Los que no tengan ninguna de las dos cosas (los de antes de este
+   *      arreglo) reciben un número detrás del mayor conocido, en un orden fijo
+   *      para que ambos dispositivos coincidan.
+   */
+  function folioDe(s) {
+    var m = /^excel-0*(\d+)$/.exec(String(s.uuid || ''));
+    if (m) return parseInt(m[1], 10);
+    var ev = s.evaluacion;
+    if (ev && ev.folio) return Number(ev.folio);
+    return null;
+  }
+
+  function siguienteFolio() {
+    var max = 0;
+    Object.keys(INT.porUuid).forEach(function (u) {
+      var f = folioDe(INT.porUuid[u]);
+      if (f && f > max) max = f;
+    });
+    return max + 1;
+  }
+  INT.siguienteFolio = siguienteFolio;
+
   window.loadRecords = function () {
     return DB.listarServicios().then(function (lista) {
-      lista.sort(function (a, b) { return (a.updatedAt || '').localeCompare(b.updatedAt || ''); }); // alias cronológico
+      lista.sort(function (a, b) { return (a.updatedAt || '').localeCompare(b.updatedAt || ''); });
       INT.porUuid = {}; INT.uuidPorAlias = {};
+
+      var folios = lista.map(folioDe);
+      var maxConocido = folios.reduce(function (m, f) { return (f && f > m) ? f : m; }, 0);
+      // A los que no tienen número se les da uno estable, en orden fijo por uuid
+      var sinFolio = [];
+      lista.forEach(function (s, i) { if (!folios[i]) sinFolio.push(i); });
+      sinFolio.sort(function (a, b) { return String(lista[a].uuid).localeCompare(String(lista[b].uuid)); });
+      sinFolio.forEach(function (idx, k) { folios[idx] = maxConocido + k + 1; });
+
       window.allRecords = lista.map(function (s, i) {
-        var alias = i + 1;
+        var alias = folios[i];
         INT.porUuid[s.uuid] = s;
         INT.uuidPorAlias[alias] = s.uuid;
         return servicioARecord(s, alias);
@@ -185,6 +228,7 @@
           if (r.repImg) { r.repImg.src = servicio.fotoPerfilUrl; r.repImg.classList.remove('hidden'); r.repPh.classList.add('hidden'); }
         }
         (servicio.evidenciasUrls || []).slice(0, 4).forEach(function (u, i) {
+          if (!u) return;                      // hueco sin foto en esa posición
           var t = 'ev' + (i + 1);
           if (fotos.some(function (f) { return f.clave === servicio.uuid + ':evidencia:' + (i + 1); })) return;
           var r = refs[t];
@@ -227,6 +271,12 @@
     var uuid = esEdicion ? INT.editingUuid : uuidNuevo();
 
     var ev = evaluacionDesdeUI(existente);
+    // El número de informe se fija al crear y viaja dentro de la evaluación (que
+    // se guarda como JSON en la hoja), así es el mismo en todos los dispositivos.
+    if (!ev.folio) {
+      var heredado = existente ? folioDe(existente) : null;
+      ev.folio = heredado || siguienteFolio();
+    }
     var r = Aprobacion.calcularResultado(ev);
 
     var servicio = Object.assign({}, existente || {}, {

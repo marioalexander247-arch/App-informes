@@ -26,8 +26,15 @@
           }).then(function (resp) {
             if (partes[1] === 'perfil') servicio.fotoPerfilUrl = resp.url;
             else {
+              /* Antes se hacía push: el orden del array dependía del orden en que
+               * se subieran las fotos, y al reemplazar una evidencia se añadía otra
+               * al final en vez de sustituirla. Como el otro dispositivo asigna las
+               * fotos por POSICIÓN (evidenciasUrls[0] -> ev1), salían cambiadas de
+               * sitio o se perdían al pasar de 4. Ahora cada una va a su hueco. */
+              var n = parseInt(partes[2], 10) || 1;
               servicio.evidenciasUrls = servicio.evidenciasUrls || [];
-              if (servicio.evidenciasUrls.indexOf(resp.url) === -1) servicio.evidenciasUrls.push(resp.url);
+              while (servicio.evidenciasUrls.length < n) servicio.evidenciasUrls.push('');
+              servicio.evidenciasUrls[n - 1] = resp.url;
             }
             return DB.marcarFotoSubida(f.clave, resp.url);
           });
@@ -57,8 +64,15 @@
 
   /* Trae cambios del servidor desde el último pull. Último updatedAt gana:
    * un registro remoto solo pisa al local si es más nuevo Y el local no está pendiente. */
+  /* Margen de seguridad al retroceder la marca de agua: cubre relojes algo
+   * desincronizados entre dispositivos y escrituras hechas mientras el pull viajaba. */
+  var MARGEN_MS = 5 * 60 * 1000;
+
   function traerCambios() {
     return DB.getMeta('ultimoPull').then(function (desde) {
+      // Auto-reparación: si la marca guardada quedó en el futuro (ver más abajo),
+      // este dispositivo estaba ciego. Se fuerza un pull completo una vez.
+      if (desde && desde > new Date().toISOString()) desde = '';
       return API.pull(desde || '');
     }).then(function (resp) {
       var lista = resp.servicios || [], cadena = Promise.resolve(), max = '';
@@ -73,7 +87,20 @@
           });
         });
       });
-      return cadena.then(function () { if (max) return DB.setMeta('ultimoPull', max); });
+      return cadena.then(function () {
+        if (!max) return;
+        /* Aquí estaba el fallo que dejaba el móvil ciego. La marca de agua se
+         * guardaba como el updatedAt MÁS ALTO del servidor, y en la hoja hay
+         * registros migrados con fecha FUTURA (excel-0030 traía 2026-09-07).
+         * El servidor filtra con `updatedAt > desde`, así que a partir de ese
+         * momento nada de lo guardado hoy volvía a bajar: los informes nuevos
+         * simplemente no existían para el otro dispositivo.
+         * La marca nunca debe superar el momento actual, y se retrocede un
+         * margen para no saltarse escrituras simultáneas. */
+        var tope = new Date(Date.now() - MARGEN_MS).toISOString();
+        var marca = max > tope ? tope : max;
+        return DB.setMeta('ultimoPull', marca);
+      });
     });
   }
 
