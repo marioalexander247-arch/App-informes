@@ -912,7 +912,7 @@
         /* --- Firmas --- */
         .inf-firmas { display: flex; gap: 40px; padding: 34px 8px 0; }
         .inf-firma { flex: 1; }
-        .inf-firma-linea { height: 40px; border-bottom: 1.5px solid #4b5563; margin-bottom: 6px; }
+        .inf-firma-linea { height: 54px; border-bottom: 1.5px solid #4b5563; margin-bottom: 6px; }
         .inf-firma-nombre { font-size: 11.5px; font-weight: 800; color: #111827; text-transform: uppercase; }
         .inf-firma-rol { font-size: 9.5px; color: #374151; text-transform: uppercase; margin-top: 3px; }
         .inf-firma-doc { font-size: 9.5px; color: #111827; font-weight: 700; margin-top: 2px; }
@@ -985,6 +985,142 @@
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
         }
+
+
+        /* ==========================================================================
+           MENÚ "+" GOOEY (barra inferior móvil) — ver js/menu-gooey.js
+           Los círculos se funden gracias al filtro SVG #goo-filtro, que sube el
+           contraste SOLO del canal alfa. Los íconos viven en una capa aparte,
+           sin filtrar, para que no salgan borrosos.
+           ========================================================================== */
+        .goo-svg { position: absolute; width: 0; height: 0; pointer-events: none; }
+
+        .goo-menu {
+            position: fixed; right: 20px; bottom: 96px;
+            width: 56px; height: 56px; z-index: 60;
+        }
+        @media (min-width: 768px) { .goo-menu { display: none; } }
+
+        .goo-capa { position: absolute; inset: 0; filter: url(#goo-filtro); }
+        .goo-botones { position: absolute; inset: 0; }
+
+        .goo-blob {
+            position: absolute; inset: 0; border-radius: 50%;
+            background: var(--primary);
+            transform: translate3d(0, 0, 0) scale(0.55);
+            transition: transform 0.44s cubic-bezier(0.34, 1.5, 0.5, 1);
+            transition-delay: var(--goo-retardo, 0ms);
+        }
+        .goo-blob-principal { transform: none; transition: none; }
+
+        .goo-btn {
+            position: absolute; inset: 0; border: 0; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: transparent; color: #1b1c1e; cursor: pointer;
+            transform: translate3d(0, 0, 0) scale(0.55);
+            opacity: 0; pointer-events: none;
+            transition: transform 0.44s cubic-bezier(0.34, 1.5, 0.5, 1), opacity 0.2s ease;
+            transition-delay: var(--goo-retardo, 0ms);
+        }
+        .goo-btn .material-symbols-outlined { font-size: 24px; }
+        .goo-principal {
+            transform: none; opacity: 1; pointer-events: auto;
+            transition: transform 0.35s cubic-bezier(0.34, 1.5, 0.5, 1);
+        }
+        .goo-abierto .goo-principal { transform: rotate(135deg); }
+
+        /* :not(...) es imprescindible: sin el, esta regla (misma especificidad y
+           posterior) le robaria el transform al boton principal, que no tiene
+           --goo-x/--goo-y y acabaria con transform: none (sin rotar). */
+        .goo-abierto .goo-blob:not(.goo-blob-principal) { transform: translate3d(var(--goo-x), var(--goo-y), 0) scale(1); }
+        .goo-abierto .goo-btn:not(.goo-principal) { transform: translate3d(var(--goo-x), var(--goo-y), 0) scale(1); opacity: 1; pointer-events: auto; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .goo-blob, .goo-btn, .goo-principal { transition-duration: 0.01ms; transition-delay: 0ms; }
+        }
+
+        /* ==========================================================================
+           CÁMARA CON GUÍA DE ENCUADRE — ver js/camara.js
+           El marco tiene la MISMA proporción que el recorte final, y el vídeo lo
+           llena con object-fit: cover. Lo que se ve dentro del marco es
+           exactamente lo que queda guardado.
+           ========================================================================== */
+        .cam-capa {
+            position: fixed; inset: 0; z-index: 200; background: #08090a;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 20px; padding: 20px;
+        }
+        .cam-marco {
+            position: relative; overflow: hidden; border-radius: 16px;
+            background: #000; flex-shrink: 1; min-height: 0;
+        }
+        .cam-marco-1-1 { width: min(84vw, 58vh); aspect-ratio: 1 / 1; }
+        .cam-marco-3-5 { height: min(62vh, 120vw); aspect-ratio: 3 / 5; }
+        .cam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .cam-espejo { transform: scaleX(-1); }
+
+        /* Oscurece lo que quedará FUERA de la foto */
+        .cam-mascara { position: absolute; inset: 0; pointer-events: none; }
+        .cam-mascara-redonda {
+            border-radius: 50%;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.55);
+        }
+        /* Borde de la guía */
+        .cam-guia {
+            position: absolute; inset: 0; pointer-events: none;
+            border: 2px solid rgba(255, 255, 255, 0.92); border-radius: 14px;
+        }
+        .cam-guia-redonda { border-radius: 50%; border-style: dashed; }
+
+        .cam-ayuda {
+            color: #e6e8ea; font-size: 13px; text-align: center; max-width: 320px;
+            line-height: 1.45; opacity: .9;
+        }
+        .cam-barra { display: flex; align-items: center; gap: 34px; }
+        .cam-disparo {
+            width: 68px; height: 68px; border-radius: 50%; cursor: pointer;
+            background: #fff; border: 4px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 0 0 3px #08090a inset;
+        }
+        .cam-disparo:active { transform: scale(0.94); }
+        .cam-sec {
+            width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+            background: rgba(255, 255, 255, 0.12); border: 0; color: #fff;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .cam-sec .material-symbols-outlined { font-size: 24px; }
+
+        /* Hoja de opciones: cámara o galería */
+        .cam-opciones {
+            position: fixed; inset: 0; z-index: 200; background: rgba(0, 0, 0, 0.5);
+            display: flex; align-items: flex-end; justify-content: center; padding: 16px;
+        }
+        .cam-opciones-caja {
+            background: var(--panel-bg); border: 1px solid var(--panel-border);
+            border-radius: 20px; padding: 14px; width: 100%; max-width: 420px;
+            box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.35);
+        }
+        .cam-opciones-tit {
+            font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+            color: var(--on-surface); opacity: .6; padding: 6px 10px 12px;
+        }
+        .cam-opcion {
+            width: 100%; display: flex; align-items: center; gap: 14px; cursor: pointer;
+            background: var(--surface-container, transparent); border: 1px solid var(--panel-border);
+            border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+            color: var(--on-surface); text-align: left; font-size: 15px;
+        }
+        .cam-opcion .material-symbols-outlined { font-size: 26px; color: var(--primary); }
+        .cam-opcion b { display: block; font-weight: 600; }
+        .cam-opcion small { display: block; font-size: 12px; opacity: .65; margin-top: 2px; }
+        .cam-opcion-cancelar { justify-content: center; margin-bottom: 0; opacity: .75; }
+
+        /* --- Firmas del informe (extraídas del PDF de referencia) --- */
+        .inf-firma-linea {
+            display: flex; align-items: flex-end; justify-content: center;
+            overflow: hidden;
+        }
+        .inf-firma-linea img { max-height: 100%; max-width: 90%; object-fit: contain; }
 
         /* Print media styling */
         @media print {
@@ -1627,14 +1763,14 @@
                         <!-- Firmas -->
                         <div class="inf-firmas">
                             <div class="inf-firma">
-                                <div class="inf-firma-linea"></div>
+                                <div class="inf-firma-linea"><img src="img/firma-valentina-ochoa.png" alt=""></div>
                                 <div class="inf-firma-nombre">Valentina Ochoa</div>
                                 <div class="inf-firma-rol">Instructor de conduccion tecnico en seguridad vial</div>
                                 <div class="inf-firma-doc">C.C. 1.144.205.740</div>
                                 <div class="inf-firma-ci">C.I. 48297</div>
                             </div>
                             <div class="inf-firma">
-                                <div class="inf-firma-linea"></div>
+                                <div class="inf-firma-linea"><img src="img/firma-mario-cordoba.png" alt=""></div>
                                 <div class="inf-firma-nombre">Mario Alexander Cordoba Cruz</div>
                                 <div class="inf-firma-rol">Instructor de conduccion tecnico en seguridad vial</div>
                                 <div class="inf-firma-doc">C.C. 1.151.964.321</div>
@@ -3566,5 +3702,7 @@ function renderManeuversList() {
     </script>
     <script src="js/integracion.js"></script>
     <script src="js/preview-fit.js"></script>
+    <script src="js/menu-gooey.js"></script>
+    <script src="js/camara.js"></script>
 </body>
 </html>
