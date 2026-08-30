@@ -1161,6 +1161,8 @@
         .salir-caja h3 { font-size: 18px; font-weight: 700; margin: 10px 0 6px; }
         .salir-caja p { font-size: 13.5px; opacity: .75; line-height: 1.5; margin-bottom: 20px; }
         .salir-botones { display: flex; gap: 10px; }
+        .salir-botones-col { flex-direction: column; }
+        .borrador-caja p b { font-weight: 700; }
         .salir-botones button {
             flex: 1; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 700;
             cursor: pointer; border: 1px solid var(--panel-border);
@@ -1173,6 +1175,54 @@
         body.informe-ampliado .preview-wrapper { touch-action: none; }
         /* El resto de la app no necesita gestos de zoom */
         body { touch-action: pan-x pan-y; }
+
+
+        /* --- Casilla "¿Vigencia?" junto a la fecha de prueba --- */
+        .vig-check { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+        .vig-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .vig-check-caja {
+            width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0;
+            border: 1.5px solid var(--outline-variant); background: var(--input-bg);
+            display: flex; align-items: center; justify-content: center;
+            transition: background-color .18s ease, border-color .18s ease;
+        }
+        .vig-check-caja .material-symbols-outlined {
+            font-size: 18px; color: #1b1c1e;
+            transform: scale(0.4); opacity: 0;
+            transition: transform .18s cubic-bezier(.34,1.56,.64,1), opacity .14s ease;
+        }
+        .vig-check input:checked + .vig-check-caja { background: var(--primary); border-color: var(--primary); }
+        .vig-check input:checked + .vig-check-caja .material-symbols-outlined { transform: scale(1); opacity: 1; }
+        .vig-check input:focus-visible + .vig-check-caja { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .vig-check-txt { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--on-surface-variant, var(--on-surface)); }
+
+        /* --- Indicador deslizante de las pestañas de vehículo ---
+           El recuadro activo es UN solo elemento que se desplaza con transform,
+           en vez de que cada botón encienda y apague su propio fondo (que es lo
+           que hacía que el selector "se teletransportara"). */
+        .veh-tabs { position: relative; }
+        .veh-indicador {
+            position: absolute; top: 4px; bottom: 4px; left: 0;
+            width: 0; border-radius: 8px; z-index: 0; pointer-events: none;
+            background-color: var(--primary-container);
+            box-shadow: inset 1px 1px 3px var(--panel-shadow-light), 3px 3px 6px var(--panel-shadow-dark), -3px -3px 6px var(--panel-shadow-light);
+            border: 1px solid var(--panel-border);
+            transform: translateX(0);
+            transition: transform .38s cubic-bezier(.34, 1.4, .5, 1), width .38s cubic-bezier(.34, 1.4, .5, 1);
+        }
+        .veh-tabs > button { position: relative; z-index: 1; }
+        /* Con el indicador dibujando el fondo, el botón activo solo aporta el color
+           del texto: si además pintara su propio fondo se verían dos recuadros. */
+        .veh-tabs > button.tab-btn-active { background: transparent !important; box-shadow: none !important; border-color: transparent !important; }
+        @media (prefers-reduced-motion: reduce) { .veh-indicador { transition: none; } }
+
+        /* Mientras el scroll manda sobre la foto del paso 1, la transition CSS
+           debe callarse (si no, cada frame arranca una transición nueva). */
+        #media-step-1.avatar-animando { transition: none; will-change: opacity, transform, filter; }
+
+        /* En móvil manda el botón "+" gooey: el menú flotante viejo quedaba
+           justo debajo y estorbaba. En escritorio sigue igual que siempre. */
+        @media (max-width: 767px) { #fab-dock { display: none !important; } }
 
         /* Print media styling */
         @media print {
@@ -1532,7 +1582,16 @@
                                 <!-- Fecha de Prueba -->
                                 <div class="flex flex-col gap-1.5 sm:col-span-2">
                                     <label class="font-semibold text-xs text-on-surface-variant uppercase tracking-wider">Fecha de Prueba</label>
-                                    <input id="part-fecha" onchange="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body w-full" type="date">
+                                    <div class="flex items-center gap-3 flex-wrap">
+                                        <input id="part-fecha" onchange="updatePreviewData()" class="input-glass rounded-xl p-3 text-on-surface font-body flex-1 min-w-[160px]" type="date">
+                                        <!-- Desmarcada = prueba de ingreso: el informe dice "Ingreso" en vez
+                                             de la fecha de vigencia. El encabezado no cambia. -->
+                                        <label for="part-vigencia-check" class="vig-check">
+                                            <input id="part-vigencia-check" type="checkbox" onchange="updatePreviewData()">
+                                            <span class="vig-check-caja"><span class="material-symbols-outlined">check</span></span>
+                                            <span class="vig-check-txt">¿Vigencia?</span>
+                                        </label>
+                                    </div>
                                 </div>
                                 <!-- Vigencia A2 -->
                                 <div class="flex flex-col gap-1.5">
@@ -1607,7 +1666,8 @@
                                 Práctica Vehículos
                             </h2>
                             <!-- Vehicle selection tabs inside Wizard -->
-                            <div class="flex bg-surface-container p-1 rounded-xl border border-outline-variant/40 shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] dark:border-outline-variant/10">
+                            <div class="veh-tabs flex bg-surface-container p-1 rounded-xl border border-outline-variant/40 shadow-[inset_2px_2px_5px_var(--panel-shadow-dark),_inset_-2px_-2px_5px_var(--panel-shadow-light)] dark:border-outline-variant/10">
+                                <span id="veh-indicador" class="veh-indicador" aria-hidden="true"></span>
                                 <button id="veh-tab-moto" type="button" onclick="switchVehicleTab('moto')" class="flex-1 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all tab-btn-active">
                                     🏍️ Moto
                                 </button>
@@ -1963,7 +2023,7 @@
     </main>
 
     <!-- Floating Action Button Menu (Speed Dial Actions) -->
-    <div class="fixed z-[60] flex flex-col items-end gap-3 select-none bottom-[88px] md:bottom-6 right-6">
+    <div id="fab-dock" class="fixed z-[60] flex flex-col items-end gap-3 select-none bottom-[88px] md:bottom-6 right-6">
         
         <!-- Expanding Options Menu Overlay -->
         <div id="floating-menu" class="scale-0 opacity-0 hidden transition-all duration-200 origin-bottom-right flex flex-col gap-2.5 p-4 neomorphic-panel rounded-2xl border border-white/40 min-w-[250px] max-w-[280px]">
@@ -1994,12 +2054,7 @@
                 <span>Guardar Cambios</span>
             </button>
             
-            <!-- Generar PDF de Excel -->
-            <button onclick="triggerPrintPDF()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl bg-secondary/15 text-secondary border border-secondary/20 hover:bg-secondary/25 active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
-                <span class="material-symbols-outlined text-base">picture_as_pdf</span>
-                <span>PDF de Excel</span>
-            </button>
-            
+
             <!-- Imprimir Vista Previa (Navegador) -->
             <button onclick="printPreview()" class="flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl neomorphic-btn active:scale-95 transition-all font-bold text-xs uppercase tracking-wide">
                 <span class="material-symbols-outlined text-base">print</span>
@@ -2414,28 +2469,42 @@
                 window.removeEventListener("scroll", profilePhotoScrollListener);
             }
 
-            profilePhotoScrollListener = () => {
+            // Una animación ligada al scroll debe pintarse UNA vez por frame. Antes se
+            // escribían estilos en cada evento de scroll (que dispara mucho más a
+            // menudo que 60 veces por segundo) y encima el CSS tenía una transition
+            // sobre opacity/filter: cada escritura arrancaba una transición nueva de
+            // 150 ms que peleaba con la siguiente. De ahí el tirón.
+            let ticking = false;
+            const pintarFoto = () => {
+                ticking = false;
                 const step1 = document.getElementById("step-1");
                 if (!step1 || step1.classList.contains("hidden")) {
                     photo.style.opacity = "";
                     photo.style.filter = "";
                     photo.style.transform = "";
+                    photo.classList.remove("avatar-animando");
                     return;
                 }
 
-                const scrollTop = window.scrollY;
-                const maxScroll = 60; // fast dissolve: completely invisible after 60px of scroll
-                const pct = Math.min(scrollTop / maxScroll, 1);
+                const pct = Math.min(window.scrollY / 60, 1);
+                photo.classList.add("avatar-animando");   // desactiva la transition CSS
+                // opacity y transform los resuelve el compositor sin recalcular estilos.
+                // El blur se deja suave (3 px) porque desenfocar es de lo más caro que
+                // hay y a 6 px se notaba en gama media.
+                photo.style.opacity = (1 - pct).toFixed(3);
+                photo.style.filter = pct > 0.02 ? `blur(${(pct * 3).toFixed(2)}px)` : "";
+                photo.style.transform = `translateX(-50%) translateY(${(pct * -20).toFixed(2)}px) scale(${(1 - pct * 0.08).toFixed(3)})`;
+            };
 
-                // GPU-accelerated updates
-                photo.style.opacity = (1 - pct).toFixed(2);
-                photo.style.filter = `blur(${(pct * 6).toFixed(1)}px)`;
-                photo.style.transform = `translateX(-50%) translateY(${(pct * -20).toFixed(1)}px)`;
+            profilePhotoScrollListener = () => {
+                if (ticking) return;
+                ticking = true;
+                requestAnimationFrame(pintarFoto);
             };
 
             window.addEventListener("scroll", profilePhotoScrollListener, { passive: true });
             // Initial call
-            profilePhotoScrollListener();
+            pintarFoto();
         }
 
                 // =========================================================================
@@ -2488,6 +2557,9 @@
         function goToStep(step) {
             activeStep = step;
             updateWizardStepUI();
+            // El paso 3 estaba oculto (ancho 0) cuando se midió el indicador:
+            // hay que recolocarlo en cuanto es visible.
+            requestAnimationFrame(moverIndicadorVehiculo);
             
             // Scroll to the wizard container on mobile
             const container = document.getElementById("form-container");
@@ -3054,18 +3126,34 @@
             adjustLayout();
         }
 
+        /* Coloca el indicador deslizante sobre la pestaña activa. Se mide la
+           posición real del botón, así funciona con cualquier ancho de pantalla. */
+        function moverIndicadorVehiculo() {
+            const ind = document.getElementById("veh-indicador");
+            const btn = document.getElementById(`veh-tab-${activeVehicleTab}`);
+            if (!ind || !btn) return;
+            const cont = ind.parentElement;
+            const c = cont.getBoundingClientRect();
+            const b = btn.getBoundingClientRect();
+            if (!b.width) return;                       // pestaña oculta: nada que mover
+            ind.style.width = b.width + "px";
+            ind.style.transform = `translateX(${b.left - c.left}px)`;
+        }
+        window.addEventListener("resize", moverIndicadorVehiculo);
+
         // Switch Vehicle Tab under Practical Evaluation
         function switchVehicleTab(veh) {
             activeVehicleTab = veh;
             const tabs = ["moto", "motocarro", "cuatrimoto", "carro"];
             tabs.forEach(t => {
                 const btn = document.getElementById(`veh-tab-${t}`);
-                if (t === veh) {
-                    btn.className = "py-2 px-3 rounded-lg font-semibold text-sm transition-all mb-1 flex items-center justify-center gap-2 tab-btn-active";
-                } else {
-                    btn.className = "py-2 px-3 rounded-lg font-semibold text-sm transition-all mb-1 flex items-center justify-center gap-2 tab-btn-inactive";
-                }
+                // Solo se cambia la clase de ESTADO. Antes se reescribía className
+                // entero y se perdían flex-1 y los tamaños de texto del HTML: por eso
+                // las pestañas cambiaban de forma al primer clic y "Carro" se salía.
+                btn.classList.toggle("tab-btn-active", t === veh);
+                btn.classList.toggle("tab-btn-inactive", t !== veh);
             });
+            moverIndicadorVehiculo();
             // Re-render maneuvers
             renderManeuversList();
         }
@@ -3375,18 +3463,28 @@ function renderManeuversList() {
             // Dates formatting
             const testDate = document.getElementById("part-fecha").value;
             if (testDate) {
+                // OJO: new Date("2026-08-30") se interpreta como medianoche UTC, que en
+                // Colombia (UTC-5) es el DÍA ANTERIOR a las 19:00. El informe llevaba la
+                // fecha corrida un día. Hay que construirla como fecha local.
+                const [aa, mm, dd] = testDate.split('-').map(Number);
+                const fechaLocal = new Date(aa, mm - 1, dd);
                 const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                const formattedDate = new Date(testDate).toLocaleDateString('es-ES', dateOptions);
+                const formattedDate = fechaLocal.toLocaleDateString('es-ES', dateOptions);
                 document.getElementById("prev-date-top").textContent = formattedDate;
                 document.getElementById("prev-date-top-2").textContent = formattedDate;
                 
-                // Calculate and format Vigencia de prueba (1 year from test date)
-                const vigenciaDate = new Date(testDate);
-                vigenciaDate.setFullYear(vigenciaDate.getFullYear() + 1);
-                const day = String(vigenciaDate.getDate()).padStart(2, '0');
-                const month = String(vigenciaDate.getMonth() + 1).padStart(2, '0');
-                const year = vigenciaDate.getFullYear();
-                document.getElementById("prev-vigencia").textContent = `${day}/${month}/${year}`;
+                // Vigencia: solo si la casilla está marcada. Si no, es prueba de
+                // ingreso y el informe muestra "Ingreso" bajo el mismo encabezado.
+                const conVigencia = document.getElementById("part-vigencia-check").checked;
+                if (conVigencia) {
+                    const vigenciaDate = new Date(aa + 1, mm - 1, dd);
+                    const day = String(vigenciaDate.getDate()).padStart(2, '0');
+                    const month = String(vigenciaDate.getMonth() + 1).padStart(2, '0');
+                    const year = vigenciaDate.getFullYear();
+                    document.getElementById("prev-vigencia").textContent = `${day}/${month}/${year}`;
+                } else {
+                    document.getElementById("prev-vigencia").textContent = "Ingreso";
+                }
             }
 
             const licA2 = document.getElementById("part-vigencia-a2").value;
@@ -3771,5 +3869,6 @@ function renderManeuversList() {
     <script src="js/camara.js"></script>
     <script src="js/zoom-informe.js"></script>
     <script src="js/salida.js"></script>
+    <script src="js/borrador.js"></script>
 </body>
 </html>

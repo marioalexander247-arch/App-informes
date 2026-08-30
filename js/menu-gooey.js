@@ -22,16 +22,20 @@
 (function () {
     'use strict';
 
+    /* Un item con `hijos` baja de nivel; uno con `fn` ejecuta y cierra.
+     * `etiquetaViva` permite que el texto cambie según el estado (el tema). */
     var MENU = {
         raiz: [
             { icono: 'edit_note',   etiqueta: 'Registro', hijos: 'registro' },
             { icono: 'search',      etiqueta: 'Buscar',   hijos: 'buscar' },
-            { icono: 'description', etiqueta: 'Informe',  hijos: 'informe' }
+            { icono: 'description', etiqueta: 'Informe',  hijos: 'informe' },
+            { icono: 'tune',        etiqueta: 'Ajustes',  hijos: 'ajustes' }
         ],
         registro: [
             { icono: 'note_add',    etiqueta: 'Nuevo',    fn: 'nuevoRegistro' },
             { icono: 'save',        etiqueta: 'Guardar',  fn: 'saveToDatabase' },
-            { icono: 'mop',         etiqueta: 'Limpiar',  fn: 'resetForm' }
+            { icono: 'mop',         etiqueta: 'Limpiar',  fn: 'resetForm' },
+            { icono: 'delete',      etiqueta: 'Eliminar', fn: 'eliminarRegistro', soloEditando: true }
         ],
         buscar: [
             { icono: 'manage_search',  etiqueta: 'Buscar registro', fn: 'openSearch' },
@@ -42,8 +46,18 @@
             { icono: 'visibility',  etiqueta: 'Vista previa', fn: 'switchView', arg: 'preview' },
             { icono: 'print',       etiqueta: 'Imprimir PDF', fn: 'printPreview' },
             { icono: 'qr_code_2',   etiqueta: 'Compartir',    fn: 'generateQR' }
+        ],
+        ajustes: [
+            { fn: 'toggleTheme',
+              icono: function () { return esOscuro() ? 'light_mode' : 'dark_mode'; },
+              etiquetaViva: function () { return esOscuro() ? 'Modo claro' : 'Modo oscuro'; },
+              mantenerAbierto: true },
+            { icono: 'cloud',     etiqueta: 'Conexión a la nube', fn: 'abrirConfigNube' },
+            { icono: 'qr_code_2', etiqueta: 'Conectar otro equipo', fn: 'generateQR' }
         ]
     };
+
+    function esOscuro() { return document.documentElement.classList.contains('dark') || document.body.classList.contains('dark'); }
 
     var SEPARACION = 64;   // px entre satélites apilados hacia arriba
     var abierto = false;
@@ -61,14 +75,20 @@
         var blobs = raiz.querySelectorAll('.goo-blob:not(.goo-blob-principal)');
         var btns = raiz.querySelectorAll('.goo-btn:not(.goo-principal)');
 
+        var visibles = items.filter(function (it) {
+            return !it.soloEditando || (window.editingId !== null && typeof window.editingId !== 'undefined');
+        });
+
         for (var i = 0; i < btns.length; i++) {
-            var it = items[i];
+            var it = visibles[i];
             var b = btns[i];
             if (!it) { b.style.display = 'none'; blobs[i].style.display = 'none'; continue; }
             b.style.display = ''; blobs[i].style.display = '';
-            b.querySelector('.material-symbols-outlined').textContent = it.icono;
-            b.querySelector('.goo-etiqueta').textContent = it.etiqueta;
-            b.setAttribute('aria-label', it.etiqueta);
+            var ico = (typeof it.icono === 'function') ? it.icono() : it.icono;
+            var txt = it.etiquetaViva ? it.etiquetaViva() : it.etiqueta;
+            b.querySelector('.material-symbols-outlined').textContent = ico;
+            b.querySelector('.goo-etiqueta').textContent = txt;
+            b.setAttribute('aria-label', txt);
             b.__item = it;
         }
 
@@ -109,7 +129,7 @@
         var botones = document.createElement('div');
         botones.className = 'goo-botones';
 
-        for (var i = 0; i < 3; i++) {
+        for (var i = 0; i < 4; i++) {
             var estilo = '--goo-y:' + (-(SEPARACION * (i + 1))) + 'px; --goo-retardo:' + (i * 45) + 'ms;';
 
             var blob = document.createElement('span');
@@ -127,6 +147,7 @@
                 var it = this.__item;
                 if (!it) return;
                 if (it.hijos) { nivel = it.hijos; pintarNivel(); }   // bajar de nivel
+                else if (it.mantenerAbierto) { llamar(it); pintarNivel(); }  // p.ej. el tema: se ve el cambio al momento
                 else { alternar(false); llamar(it); }
             });
             botones.appendChild(btn);
