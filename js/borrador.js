@@ -51,8 +51,28 @@
         return huella(estadoActual()) !== base;
     }
 
+    /* ¿Merece la pena guardar? Basta con CUALQUIER dato: un nombre a medias, una
+     * cédula, una foto, una nota teórica movida. Guardar exige el formulario
+     * completo (nombre, cédula, empresa, categorías, observaciones y
+     * conclusiones); el borrador no exige nada de eso, justo para que puedas
+     * dejar algo a medias y volver luego. */
     function vacio(e) {
-        return !e.campos['part-nombre'] && !e.campos['part-cedula'] && !e.fotos.length;
+        var algunCampo = CAMPOS.some(function (id) {
+            var v = e.campos[id];
+            if (!v) return false;
+            // la fecha viene rellenada sola al abrir: por sí sola no cuenta
+            if (id === 'part-fecha') return false;
+            return true;
+        });
+        if (algunCampo || e.fotos.length) return false;
+        // también cuenta haber tocado las notas o las maniobras
+        try {
+            var t = JSON.parse(e.teoria || '{}');
+            if (Object.keys(t).some(function (k) { return Number(t[k]) > 0; })) return false;
+            var pr = JSON.parse(e.practica || '{}');
+            if (Object.keys(pr).some(function (k) { return pr[k] === 1 || pr[k] === true; })) return false;
+        } catch (x) { }
+        return true;
     }
 
     // ---------------- almacén de borradores ----------------

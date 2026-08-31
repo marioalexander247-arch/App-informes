@@ -35,7 +35,8 @@
             { icono: 'note_add',    etiqueta: 'Nuevo',    fn: 'nuevoRegistro' },
             { icono: 'save',        etiqueta: 'Guardar',  fn: 'saveToDatabase' },
             { icono: 'mop',         etiqueta: 'Limpiar',  fn: 'resetForm' },
-            { icono: 'delete',      etiqueta: 'Eliminar', fn: 'eliminarRegistro', soloEditando: true }
+            { icono: 'delete',      etiqueta: 'Eliminar', fn: 'eliminarRegistro', soloEditando: true },
+            { icono: 'close',       etiqueta: 'Cancelar edición', fn: 'nuevoRegistro', soloEditando: true }
         ],
         buscar: [
             { icono: 'manage_search',  etiqueta: 'Buscar registro', fn: 'openSearch' },
@@ -129,7 +130,7 @@
         var botones = document.createElement('div');
         botones.className = 'goo-botones';
 
-        for (var i = 0; i < 4; i++) {
+        for (var i = 0; i < 5; i++) {
             var estilo = '--goo-y:' + (-(SEPARACION * (i + 1))) + 'px; --goo-retardo:' + (i * 45) + 'ms;';
 
             var blob = document.createElement('span');

@@ -530,8 +530,11 @@
             }
             
             .grid-split-container.split-active #form-container {
-                width: 42% !important;
-                max-width: 42% !important;
+                /* 42% + 58% ya suman el 100%: si además hay un gap de 2rem, el
+                   conjunto se pasa del ancho disponible y aparece scroll
+                   horizontal. Cada panel cede la mitad del hueco. */
+                width: calc(42% - 1rem) !important;
+                max-width: calc(42% - 1rem) !important;
                 margin-left: 0 !important;
                 margin-right: 0 !important;
             }
@@ -551,8 +554,8 @@
             }
             
             .grid-split-container.split-active #preview-container {
-                width: 58% !important;
-                max-width: 58% !important;
+                width: calc(58% - 1rem) !important;
+                max-width: calc(58% - 1rem) !important;
                 opacity: 1 !important;
                 visibility: visible !important;
                 pointer-events: auto !important;
@@ -1002,7 +1005,11 @@
             position: fixed; right: 20px; bottom: 96px;
             width: 56px; height: 56px; z-index: 60;
         }
-        @media (min-width: 768px) { .goo-menu { display: none; } }
+        /* En móvil el botón va por encima de la barra inferior (76 px). A partir
+           de tablet esa barra no existe, así que baja a su sitio natural. */
+        @media (min-width: 768px) { .goo-menu { bottom: 24px; right: 24px; } }
+        /* El menú gooey es el menú de la app en TODOS los tamaños: móvil,
+           tablet y escritorio. El FAB de hamburguesa se retiró. */
 
         .goo-capa { position: absolute; inset: 0; filter: url(#goo-filtro); }
         .goo-botones { position: absolute; inset: 0; }
@@ -1220,9 +1227,11 @@
            debe callarse (si no, cada frame arranca una transición nueva). */
         #media-step-1.avatar-animando { transition: none; will-change: opacity, transform, filter; }
 
-        /* En móvil manda el botón "+" gooey: el menú flotante viejo quedaba
-           justo debajo y estorbaba. En escritorio sigue igual que siempre. */
-        @media (max-width: 767px) { #fab-dock { display: none !important; } }
+        /* El menú de hamburguesa queda oculto en todas las pantallas: su sitio lo
+           ocupa el botón "+". No se borra del HTML porque contiene ids que el JS
+           necesita (save-db-btn, save-spinner, menu-delete-btn, menu-theme-icon…);
+           borrarlos rompería el guardado y el modo edición. */
+        #fab-dock { display: none !important; }
 
         /* Print media styling */
         @media print {
@@ -2776,18 +2785,14 @@
         // los datos frescos (evita mostrar la version anterior de la BD).
         // El parametro ?t= rompe cualquier cache del navegador sobre /data.
         function loadRecords() {
-            return fetch("/data?t=" + Date.now(), { cache: "no-store" })
-                .then(res => res.json())
-                .then(data => {
-                    allRecords = Array.isArray(data) ? data : [];
-                    // Si el buscador esta abierto, repintar con lo recien traido
-                    const modal = document.getElementById("search-modal");
-                    if (modal && !modal.classList.contains("hidden")) {
-                        filterRecords();
-                    }
-                    return allRecords;
-                })
-                .catch(() => { allRecords = []; return allRecords; });
+            // El puente de Python (/data) ya no existe: los registros salen de la
+            // base local y la nube, y esta función la reemplaza integracion.js.
+            // Se deja el esqueleto porque el arranque la llama antes de que ese
+            // archivo se cargue; si aquí se pidiera /data serían dos 404 por
+            // arranque y allRecords se quedaría vacío durante un instante.
+            const modal = document.getElementById("search-modal");
+            if (modal && !modal.classList.contains("hidden")) filterRecords();
+            return Promise.resolve(allRecords || []);
         }
 
         // =========================================================================

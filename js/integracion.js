@@ -142,13 +142,23 @@
     return null;
   }
 
+  /* El número más alto usado NUNCA, aunque ese servicio ya no exista. Si solo se
+   * mirara el máximo de los registros vivos, al borrar el último informe el
+   * siguiente reutilizaría su número y podrían circular dos documentos distintos
+   * con el mismo número impreso. */
+  var folioTecho = 0;
+  DB.getMeta('folioTecho').then(function (v) { folioTecho = Number(v || 0); }).catch(function () {});
+
   function siguienteFolio() {
-    var max = 0;
+    var max = folioTecho;
     Object.keys(INT.porUuid).forEach(function (u) {
       var f = folioDe(INT.porUuid[u]);
       if (f && f > max) max = f;
     });
-    return max + 1;
+    var siguiente = max + 1;
+    folioTecho = siguiente;
+    DB.setMeta('folioTecho', siguiente).catch(function () {});
+    return siguiente;
   }
   INT.siguienteFolio = siguienteFolio;
 
@@ -165,6 +175,9 @@
       sinFolio.sort(function (a, b) { return String(lista[a].uuid).localeCompare(String(lista[b].uuid)); });
       sinFolio.forEach(function (idx, k) { folios[idx] = maxConocido + k + 1; });
 
+      var tope = folios.reduce(function (m, f) { return (f && f > m) ? f : m; }, 0);
+      if (tope > folioTecho) { folioTecho = tope; DB.setMeta('folioTecho', tope).catch(function () {}); }
+
       window.allRecords = lista.map(function (s, i) {
         var alias = folios[i];
         INT.porUuid[s.uuid] = s;
@@ -174,7 +187,12 @@
       var modal = document.getElementById('search-modal');
       if (modal && !modal.classList.contains('hidden')) window.filterRecords();
       return window.allRecords;
-    }).catch(function () { window.allRecords = []; return window.allRecords; });
+    }).catch(function (e) {
+      // Antes se tragaba el error en silencio y la lista quedaba vacía sin
+      // que nadie supiera por qué. Ahora al menos queda en la consola.
+      console.error('[integracion] loadRecords falló:', e);
+      window.allRecords = []; return window.allRecords;
+    });
   };
 
   // ============================================================
@@ -349,7 +367,7 @@
     var enNube = s && s.estado === 'sincronizado';
 
     if (!confirm('⚠️ ELIMINAR REGISTRO\n\n' + nombre + '\n\nSe borrará del teléfono (incluidas sus fotos locales).' +
-      (enNube ? '\n\nOJO: ya está en la nube; para borrarlo de allá elimina su fila en la hoja "Servicios" del Google Sheet.' : '\n\nAún no se había subido a la nube.') +
+      (enNube ? '\n\nTambién se borrará de la nube y de los demás dispositivos.\nSus fotos van a la papelera de Drive (recuperables).' : '\n\nAún no se había subido a la nube.') +
       '\n\n¿Deseas continuar?')) return;
     if (!confirm('Esta acción no se puede deshacer en el teléfono.\n\n¿Eliminar definitivamente?')) return;
 
@@ -358,7 +376,17 @@
       return Promise.all(fotos.map(function (f) { return DB.borrarFoto(f.clave); }));
     }).then(function () { return DB.borrarServicio(uuid); })
       .then(function () {
-        alert('🗑️ Registro eliminado del dispositivo.');
+        /* Sin este aviso al servidor el borrado no servía de nada: el siguiente
+         * pull devolvía el registro y resucitaba. */
+        if (enNube && API.configurada() && navigator.onLine) {
+          return API.borrar(uuid).catch(function (e) {
+            alert('Se borró del teléfono, pero no se pudo avisar a la nube (' + e.message + ').');
+          });
+        }
+        if (enNube) alert('Sin conexión: se borró del teléfono. Con señal, elimínalo otra vez para que salga también de la nube.');
+      })
+      .then(function () {
+        alert('🗑️ Registro eliminado.');
         INT.editingUuid = null;
         window.editingId = null;
         window.setEditingUI();

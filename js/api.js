@@ -26,7 +26,9 @@
   function post(action, body) {
     var c = cfg();
     if (!c.url) return Promise.reject(new Error('API no configurada'));
-    var q = new URLSearchParams({ action: action, token: c.token });
+    var extra = { action: action, token: c.token };
+    if (body && body.uuid && action === 'borrar') extra.uuid = body.uuid;
+    var q = new URLSearchParams(extra);
     return fetch(c.url + '?' + q.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -44,6 +46,7 @@
     bootstrap: function () { return get('bootstrap'); },
     pull: function (desde) { return get('pull', { desde: desde || '' }); },
     save: function (servicio) { return post('save', servicio); },
-    upload: function (datos) { return post('upload', datos); } // {uuid, tipo, n, mime, base64}
+    upload: function (datos) { return post('upload', datos); }, // {uuid, tipo, n, mime, base64}
+    borrar: function (uuid) { return post('borrar', { uuid: uuid }); }
   };
 })(window);

@@ -81,6 +81,15 @@
         cadena = cadena.then(function () {
           return DB.obtenerServicio(remoto.uuid).then(function (local) {
             if (local && local.estado === 'pendiente') return;                 // lo local pendiente manda
+            /* Lápida: el servidor avisa de que ese servicio se borró en otro
+             * dispositivo. Sin esto, borrar en un equipo no servía de nada: el
+             * siguiente pull lo devolvía y el registro resucitaba. */
+            if (remoto.estado === 'eliminado') {
+              if (!local) return;
+              return DB.fotosDe(remoto.uuid)
+                .then(function (fotos) { return Promise.all(fotos.map(function (f) { return DB.borrarFoto(f.clave); })); })
+                .then(function () { return DB.borrarServicio(remoto.uuid); });
+            }
             if (local && (local.updatedAt || '') >= (remoto.updatedAt || '')) return;
             remoto.estado = 'sincronizado';
             return DB.guardarServicio(remoto);
