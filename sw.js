@@ -3,7 +3,7 @@
  * Fuentes de Google: caché en tiempo de ejecución (para que los íconos y
  * tipografías también funcionen sin conexión tras la primera visita).
  * Las llamadas a la API de Apps Script van solo por red; Sync maneja la cola. */
-var VERSION = 'appinf-v14';
+var VERSION = 'appinf-v15';
 var SHELL = [
   './', 'index.html', 'manifest.json', 'tailwind.js',
   'js/esquema-default.js', 'js/aprobacion.js', 'js/db.js', 'js/api.js',
@@ -60,6 +60,7 @@ self.addEventListener('fetch', function (e) {
   /* La página de rescate NUNCA se cachea: es la que se abre precisamente
    * cuando el caché tiene código viejo, así que tiene que llegar de la red. */
   if (url.pathname.indexOf('actualizar.html') > -1) return;
+  if (url.pathname.indexOf('diagnostico.html') > -1) return;
 
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(function (hit) {

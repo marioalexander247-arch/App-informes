@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<!-- Diagnóstico: compara lo que este dispositivo tiene guardado con lo que hay
+     en la nube, registro por registro, y señala las diferencias.
+     Es autónoma a propósito: abre IndexedDB y llama a la API por su cuenta, sin
+     cargar ningún js/ de la app, para que no dependa de lo que haya cacheado el
+     Service Worker (que es justo lo que suele estar viejo). -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico App Informes</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#131415; color:#e2e8f0; font-family:Inter,system-ui,-apple-system,sans-serif; padding:16px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { font-size:13px; opacity:.7; margin:0 0 14px; }
+  .caja { background:#1d1e20; border-radius:14px; padding:16px; margin-bottom:12px; }
+  .btn { display:block; width:100%; padding:13px; border:0; border-radius:11px; font-size:15px;
+         font-weight:700; cursor:pointer; background:#f5ab1a; color:#131415; margin-top:10px; }
+  .btn.sec { background:transparent; color:#e2e8f0; border:1px solid #555; }
+  .btn[disabled] { opacity:.5; cursor:default; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid #2b2c2f; }
+  th { opacity:.6; font-weight:600; }
+  .ok  { color:#4ade80; }
+  .mal { color:#f87171; font-weight:700; }
+  .dato { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  #resumen { font-size:14px; line-height:1.6; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+  <h1>🔎 Diagnóstico</h1>
+  <p class="sub">Compara este dispositivo con la nube. No cambia nada hasta que tú lo pidas.</p>
+
+  <div class="caja">
+    <div id="resumen">Pulsa el botón para revisar.</div>
+    <button class="btn" id="revisar">Revisar ahora</button>
+    <button class="btn sec" id="reparar" style="display:none">Traer de la nube los que no coinciden</button>
+  </div>
+
+  <div class="caja scroll" id="tablaCaja" style="display:none">
+    <table id="tabla"><thead><tr>
+      <th>Registro</th><th>Teoría</th><th>Prácticas</th><th>Resultado</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+<script>
+(function () {
+  var VEHICULOS = ['moto', 'motocarro', 'cuatrimoto', 'carro'];
+  var TEORIA = ['tecnicas', 'normatividad', 'epp', 'mecanica'];
+  var difieren = [];   // {uuid, remoto}
+
+  function abrirDB() {
+    return new Promise(function (res, rej) {
+      var req = indexedDB.open('informes-cda');
+      req.onsuccess = function () { res(req.result); };
+      req.onerror = function () { rej(req.error); };
+    });
+  }
+
+  function leerServicios(db) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction('servicios', 'readonly').objectStore('servicios').getAll();
+      t.onsuccess = function () { res(t.result || []); };
+      t.onerror = function () { rej(t.error); };
+    });
+  }
+
+  function guardarServicio(db, s) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction('servicios', 'readwrite');
+      t.objectStore('servicios').put(s);
+      t.oncomplete = res; t.onerror = function () { rej(t.error); };
+    });
+  }
+
+  /* Resumen numérico de una evaluación: cuánta teoría y cuántas maniobras. */
+  function resumen(s) {
+    var ev = (s && s.evaluacion) || {}, mods = ev.modulos || {};
+    var teo = mods.teoria || {}, suma = 0;
+    TEORIA.forEach(function (c) { suma += teo[c] ? Number(teo[c].nota) || 0 : 0; });
+    var total = 0, ok = 0;
+    VEHICULOS.forEach(function (v) {
+      Object.keys(mods[v] || {}).forEach(function (k) {
+        total++; if (Number(mods[v][k].nota) === 1) ok++;
+      });
+    });
+    return { teoria: suma, practOK: ok, practTotal: total, resultado: s.resultado || '(vacío)' };
+  }
+
+  function celda(local, nube) {
+    var igual = String(local) === String(nube);
+    return '<td class="dato ' + (igual ? 'ok' : 'mal') + '">' + local +
+           (igual ? '' : ' <small>(nube: ' + nube + ')</small>') + '</td>';
+  }
+
+  document.getElementById('revisar').onclick = function () {
+    var boton = this;
+    boton.disabled = true; boton.textContent = 'Revisando…';
+    var res = document.getElementById('resumen');
+
+    var url = localStorage.getItem('apiUrl'), token = localStorage.getItem('apiToken');
+    if (!url || !token) {
+      res.innerHTML = '❌ Este dispositivo no tiene configurada la conexión a la nube.';
+      boton.disabled = false; boton.textContent = 'Revisar ahora'; return;
+    }
+
+    var db;
+    abrirDB()
+      .then(function (d) { db = d; return leerServicios(db); })
+      .then(function (locales) {
+        return fetch(url + '?action=pull&token=' + encodeURIComponent(token) + '&desde=')
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j.error) throw new Error(j.error);
+            return { locales: locales, remotos: j.servicios || [] };
+          });
+      })
+      .then(function (d) {
+        var porUuid = {};
+        d.locales.forEach(function (s) { porUuid[s.uuid] = s; });
+
+        var tbody = document.querySelector('#tabla tbody');
+        tbody.innerHTML = '';
+        difieren = [];
+        var soloEnNube = 0;
+
+        d.remotos.forEach(function (rem) {
+          if (rem.estado === 'eliminado') return;
+          var loc = porUuid[rem.uuid];
+          if (!loc) { soloEnNube++; difieren.push({ uuid: rem.uuid, remoto: rem }); return; }
+
+          var a = resumen(loc), b = resumen(rem);
+          var mismo = a.teoria === b.teoria && a.practOK === b.practOK &&
+                      a.practTotal === b.practTotal && a.resultado === b.resultado;
+          if (!mismo) difieren.push({ uuid: rem.uuid, remoto: rem });
+
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + (loc.nombre || rem.nombre || rem.uuid).slice(0, 20) +
+              (loc.estado === 'pendiente' ? ' <small>(sin subir)</small>' : '') + '</td>' +
+            celda(a.teoria + '/30', b.teoria + '/30') +
+            celda(a.practOK + '/' + a.practTotal, b.practOK + '/' + b.practTotal) +
+            celda(a.resultado, b.resultado);
+          if (!mismo) tbody.appendChild(tr); else tbody.appendChild(tr);
+        });
+
+        document.getElementById('tablaCaja').style.display = 'block';
+        var cache = (window.caches ? caches.keys() : Promise.resolve([]));
+        return cache.then(function (ks) {
+          var v = ks.filter(function (k) { return k.indexOf('appinf-') === 0 && k.indexOf('-fuentes') === -1; });
+          res.innerHTML =
+            '<b>Versión instalada:</b> ' + (v.length ? v.join(', ').replace(/appinf-/g, '') : 'sin instalar') + '<br>' +
+            '<b>Registros aquí:</b> ' + d.locales.length + ' · <b>en la nube:</b> ' + d.remotos.length + '<br>' +
+            (difieren.length
+              ? '<span class="mal">' + difieren.length + ' registro(s) no coinciden con la nube' +
+                (soloEnNube ? ' (' + soloEnNube + ' ni siquiera están en este dispositivo)' : '') + '.</span>'
+              : '<span class="ok">Todo coincide con la nube. ✔</span>');
+          document.getElementById('reparar').style.display = difieren.length ? 'block' : 'none';
+          boton.disabled = false; boton.textContent = 'Revisar otra vez';
+        });
+      })
+      .catch(function (e) {
+        res.innerHTML = '❌ ' + e.message;
+        boton.disabled = false; boton.textContent = 'Revisar ahora';
+      });
+  };
+
+  /* Sobrescribe con la versión de la nube SOLO los registros que difieren y que
+   * no tengan cambios locales sin subir (esos se respetan: son trabajo tuyo que
+   * la nube todavía no conoce). */
+  document.getElementById('reparar').onclick = function () {
+    var boton = this;
+    boton.disabled = true; boton.textContent = 'Reparando…';
+    var db, saltados = 0, arreglados = 0;
+    abrirDB()
+      .then(function (d) { db = d; return leerServicios(db); })
+      .then(function (locales) {
+        var porUuid = {};
+        locales.forEach(function (s) { porUuid[s.uuid] = s; });
+        var cadena = Promise.resolve();
+        difieren.forEach(function (d2) {
+          cadena = cadena.then(function () {
+            var loc = porUuid[d2.uuid];
+            if (loc && loc.estado === 'pendiente') { saltados++; return; }
+            var s = d2.remoto;
+            s.estado = 'sincronizado';
+            arreglados++;
+            return guardarServicio(db, s);
+          });
+        });
+        return cadena;
+      })
+      .then(function () {
+        document.getElementById('resumen').innerHTML =
+          '<span class="ok">Listo: ' + arreglados + ' registro(s) traídos de la nube.</span>' +
+          (saltados ? '<br><small>' + saltados + ' se dejaron como estaban por tener cambios sin subir.</small>' : '') +
+          '<br><small>Abriendo la app…</small>';
+        setTimeout(function () { location.replace('./?reparada=' + Date.now()); }, 1800);
+      })
+      .catch(function (e) {
+        document.getElementById('resumen').innerHTML = '❌ ' + e.message;
+        boton.disabled = false; boton.textContent = 'Traer de la nube los que no coinciden';
+      });
+  };
+})();
+</script>
+</body>
+</html>
