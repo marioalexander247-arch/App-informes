@@ -467,6 +467,11 @@
        * quedó con código viejo. Al lado, la salida para forzar la puesta al día. */
       '<p style="font-size:12px;opacity:.65;margin:0 0 10px">Versión en este dispositivo: <b id="int-version">…</b> · ' +
       '<a id="int-actualizar" href="actualizar.html" style="color:#f5ab1a">forzar actualización</a></p>' +
+      /* A mano dentro de la app: es donde se acude cuando algo no cuadra entre
+       * dispositivos, y buscar la URL en el navegador en ese momento es lo
+       * último que uno quiere estar haciendo. */
+      '<a id="int-diagnostico" href="diagnostico.html" style="display:block;text-align:center;padding:10px;border-radius:10px;' +
+      'border:1px solid #555;color:inherit;text-decoration:none;font-size:14px;margin-bottom:8px">🔎 Revisar sincronización</a>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button id="int-probar" style="flex:1;padding:10px;border-radius:10px;border:1px solid #555;background:transparent;color:inherit;cursor:pointer">Probar</button>' +
       '<button id="int-guardar" style="flex:1;padding:10px;border-radius:10px;border:0;background:#f5ab1a;color:#131415;font-weight:700;cursor:pointer">Guardar</button>' +
