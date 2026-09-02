@@ -462,6 +462,11 @@
       '<input id="int-url" placeholder="https://script.google.com/macros/s/…/exec" style="width:100%;padding:11px;border-radius:10px;border:1px solid #444;background:rgba(0,0,0,.25);color:inherit;margin:4px 0">' +
       '<input id="int-token" type="password" placeholder="Token secreto" style="width:100%;padding:11px;border-radius:10px;border:1px solid #444;background:rgba(0,0,0,.25);color:inherit;margin:4px 0">' +
       '<p id="int-msg" style="font-size:12.5px;min-height:18px;margin:6px 0"></p>' +
+      /* La versión que se muestra es la que el dispositivo tiene REALMENTE
+       * cacheada, no la que debería tener: es el dato que dice si la app se
+       * quedó con código viejo. Al lado, la salida para forzar la puesta al día. */
+      '<p style="font-size:12px;opacity:.65;margin:0 0 10px">Versión en este dispositivo: <b id="int-version">…</b> · ' +
+      '<a id="int-actualizar" href="actualizar.html" style="color:#f5ab1a">forzar actualización</a></p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button id="int-probar" style="flex:1;padding:10px;border-radius:10px;border:1px solid #555;background:transparent;color:inherit;cursor:pointer">Probar</button>' +
       '<button id="int-guardar" style="flex:1;padding:10px;border-radius:10px;border:0;background:#f5ab1a;color:#131415;font-weight:700;cursor:pointer">Guardar</button>' +
@@ -509,10 +514,22 @@
     };
   }
 
+  /* Lee el nombre de la caché del Service Worker (appinf-vNN). */
+  function pintarVersion() {
+    var el = document.getElementById('int-version');
+    if (!el) return;
+    if (!window.caches) { el.textContent = 'sin caché'; return; }
+    caches.keys().then(function (ks) {
+      var v = ks.filter(function (k) { return k.indexOf('appinf-') === 0 && k.indexOf('-fuentes') === -1; });
+      el.textContent = v.length ? v.join(', ').replace(/appinf-/g, '') : 'sin instalar';
+    }).catch(function () { el.textContent = '?'; });
+  }
+
   function abrirConfig() {
     document.getElementById('int-url').value = localStorage.getItem('apiUrl') || '';
     document.getElementById('int-token').value = localStorage.getItem('apiToken') || '';
     document.getElementById('int-config').style.display = 'flex';
+    pintarVersion();
   }
   window.abrirConfigNube = abrirConfig; // por si se quiere enlazar desde el menú FAB
 

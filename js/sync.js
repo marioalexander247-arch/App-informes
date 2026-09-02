@@ -178,11 +178,21 @@
     return cambio ? DB.guardarServicio(local) : null;
   }
 
+  /* El pull incremental (solo lo cambiado desde la última vez) tiene un agujero
+   * estructural: si un registro se actualiza en la nube y este dispositivo, por
+   * lo que sea, no llega a recibir ese cambio, la marca de agua sigue avanzando
+   * y ese registro NO VUELVE A BAJAR NUNCA. Fue lo que dejó fichas viejas sin
+   * las URLs de sus fotos. Por eso el primer pull de cada arranque es completo:
+   * son unas decenas de KB y el dispositivo se repara solo. Los siguientes
+   * (botón, vuelta de la señal) siguen siendo incrementales. */
+  var faltaPullCompleto = true;
+
   function traerCambios() {
     return DB.getMeta('ultimoPull').then(function (desde) {
       // Auto-reparación: si la marca guardada quedó en el futuro (ver más abajo),
       // este dispositivo estaba ciego. Se fuerza un pull completo una vez.
       if (desde && desde > new Date().toISOString()) desde = '';
+      if (faltaPullCompleto) { desde = ''; faltaPullCompleto = false; }
       return API.pull(desde || '');
     }).then(function (resp) {
       var lista = resp.servicios || [], cadena = Promise.resolve(), max = '';

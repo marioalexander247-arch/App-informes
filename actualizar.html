@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!-- Página de rescate para cuando la app instalada se queda con código viejo.
+     El Service Worker antiguo sirve los archivos desde su caché, así que subir
+     una versión nueva puede no llegar nunca al dispositivo. Esta página no está
+     en ese caché (el SW la excluye a propósito), así que siempre llega de la red
+     y puede limpiar lo que bloquea la actualización.
+     NO toca IndexedDB: los registros, las fotos y lo que esté sin subir se
+     conservan intactos. Solo borra copias de archivos que se vuelven a bajar. -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Actualizar App Informes</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         background:#131415; color:#e2e8f0; font-family:Inter,system-ui,-apple-system,sans-serif; padding:20px; }
+  .caja { max-width:420px; width:100%; background:#1d1e20; border-radius:18px; padding:26px; }
+  h1 { font-size:19px; margin:0 0 6px; }
+  p  { font-size:14px; line-height:1.5; opacity:.8; margin:0 0 16px; }
+  #log { font-size:13px; line-height:1.9; margin:0 0 18px; padding:0; list-style:none; }
+  #log li::before { content:"• "; color:#f5ab1a; }
+  .btn { display:block; width:100%; padding:13px; border:0; border-radius:11px; font-size:15px;
+         font-weight:700; cursor:pointer; background:#f5ab1a; color:#131415; }
+  .btn[disabled] { opacity:.5; cursor:default; }
+  .aviso { font-size:12.5px; opacity:.6; margin-top:14px; }
+</style>
+</head>
+<body>
+  <div class="caja">
+    <h1>🔄 Actualizar App Informes</h1>
+    <p>Esto obliga al teléfono a descargar la última versión de la app.
+       <b>No se borra ningún informe ni ninguna foto.</b></p>
+    <ul id="log"></ul>
+    <button class="btn" id="ir">Actualizar ahora</button>
+    <p class="aviso">Al terminar se abre la app sola. Si no, ábrela desde su icono.</p>
+  </div>
+
+<script>
+(function () {
+  var log = document.getElementById('log');
+  var boton = document.getElementById('ir');
+  function di(t) { var li = document.createElement('li'); li.textContent = t; log.appendChild(li); }
+
+  boton.onclick = function () {
+    boton.disabled = true;
+    boton.textContent = 'Actualizando…';
+
+    var pasos = [];
+
+    // 1) Fuera el Service Worker: es el que estaba sirviendo el código viejo.
+    //    Al volver a abrir la app se registra de nuevo, ya en su última versión.
+    pasos.push(
+      (navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]))
+        .then(function (regs) {
+          return Promise.all(regs.map(function (r) { return r.unregister(); }))
+            .then(function () { di(regs.length ? 'Service Worker retirado (' + regs.length + ')' : 'No había Service Worker'); });
+        }).catch(function () { di('No se pudo tocar el Service Worker'); })
+    );
+
+    // 2) Fuera las cachés de archivos (HTML/JS/CSS). Se vuelven a bajar solas.
+    //    Ojo: caches.delete NO afecta a IndexedDB, que es donde viven los datos.
+    pasos.push(
+      (window.caches ? caches.keys() : Promise.resolve([]))
+        .then(function (ks) {
+          return Promise.all(ks.map(function (k) { return caches.delete(k); }))
+            .then(function () { di(ks.length ? 'Archivos viejos borrados: ' + ks.join(', ') : 'No había archivos cacheados'); });
+        }).catch(function () { di('No se pudieron borrar los archivos cacheados'); })
+    );
+
+    Promise.all(pasos).then(function () {
+      di('Listo. Abriendo la app…');
+      // cache-buster: que la primera petición no vuelva a salir de una caché
+      setTimeout(function () { location.replace('./?actualizada=' + Date.now()); }, 1200);
+    });
+  };
+
+  di('Tus informes y fotos NO se tocan.');
+})();
+</script>
+</body>
+</html>
