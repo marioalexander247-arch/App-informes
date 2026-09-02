@@ -102,6 +102,21 @@
     });
   }
 
+  /* Une las evidencias locales (blob en IndexedDB, del dispositivo que las tomó)
+   * con las remotas (URL de Drive, lo único que tiene CUALQUIER otro dispositivo
+   * después del pull). La posición n de la clave 'uuid:evidencia:n' es el índice
+   * n-1 de evidenciasUrls (mismo criterio que sync.js), así que cada foto cae en
+   * su hueco y el blob local manda sobre la URL cuando existen las dos. */
+  function mezclarEvidencias(locales, remotas) {
+    var out = (remotas || []).slice();
+    (locales || []).forEach(function (f) {
+      var n = parseInt(f.clave.split(':')[2], 10) || (out.length + 1);
+      while (out.length < n) out.push('');
+      out[n - 1] = Fotos.urlDeFoto(f);
+    });
+    return out.filter(Boolean);
+  }
+
   // ---------- vista: DETALLE ----------
   function vistaDetalle(id) {
     Promise.all([DB.obtenerServicio(id), DB.fotosDe(id)]).then(function (rs) {
@@ -112,6 +127,10 @@
       var perfil = fotos.find(function (f) { return f.clave.indexOf(':perfil:') > -1; });
       var urlPerfil = perfil ? Fotos.urlDeFoto(perfil) : s.fotoPerfilUrl;
       var evidencias = fotos.filter(function (f) { return f.clave.indexOf(':evidencia:') > -1; });
+      /* Antes la galería pintaba SOLO los blobs locales. En el teléfono, que
+       * recibe el informe por pull y no tiene blobs, salía la tarjeta
+       * "Evidencias" completamente vacía aunque las fotos estuvieran en Drive. */
+      var urlsEvidencias = mezclarEvidencias(evidencias, s.evidenciasUrls);
 
       var modulosHTML = r.modulos.map(function (m) {
         var items = ev.modulos[m.id];
@@ -142,9 +161,9 @@
         '<span>Final: ' + Math.round(r.total * 100) + '% · Umbral: ' + Math.round(r.umbral * 100) + '%</span></div>' +
         '<p class="veredicto">' + esc(r.detalle) + '</p>' +
         modulosHTML +
-        (evidencias.length || (s.evidenciasUrls || []).length ?
+        (urlsEvidencias.length ?
           '<div class="card"><div class="card-head"><b>Evidencias</b></div><div class="galeria">' +
-          evidencias.map(function (f) { return '<img src="' + Fotos.urlDeFoto(f) + '">'; }).join('') +
+          urlsEvidencias.map(function (u) { return '<img loading="lazy" src="' + esc(u) + '">'; }).join('') +
           '</div></div>' : '') +
         (s.observaciones ? '<div class="card"><div class="card-head"><b>Observaciones</b></div><p>' + esc(s.observaciones) + '</p></div>' : '') +
         (s.conclusiones ? '<div class="card"><div class="card-head"><b>Conclusiones</b></div><p>' + esc(s.conclusiones) + '</p></div>' : '') +
@@ -281,19 +300,40 @@
         });
         document.getElementById('f-foto-evidencia').addEventListener('change', function (e) {
           if (!e.target.files[0]) return;
-          Fotos.agregarEvidencia(s.uuid, e.target.files[0]).then(pintarEvidencias);
+          /* El mínimo evita que el teléfono, con IndexedDB vacío para este
+           * servicio, numere la nueva evidencia como la 1 y machaque en Drive
+           * la evidencia 1 que ya existía. */
+          Fotos.agregarEvidencia(s.uuid, e.target.files[0], (s.evidenciasUrls || []).length)
+            .then(pintarEvidencias);
         });
         document.getElementById('btn-cancelar').onclick = function () { history.back(); };
         document.getElementById('btn-guardar').onclick = guardar;
 
-        pintarEvidencias(); previewResultado();
+        pintarPerfil(); pintarEvidencias(); previewResultado();
       }
 
       function pintarEvidencias() {
         DB.fotosDe(s.uuid).then(function (fotos) {
           var evs = fotos.filter(function (f) { return f.clave.indexOf(':evidencia:') > -1; });
           var cont = document.getElementById('prev-evidencias');
-          if (cont) cont.innerHTML = evs.map(function (f) { return '<img src="' + Fotos.urlDeFoto(f) + '">'; }).join('');
+          /* Mismas dos fuentes que el detalle: si se edita desde un dispositivo
+           * que no tomó las fotos, hay que ver las que ya están en Drive; de lo
+           * contrario parece que el informe no tiene ninguna. */
+          if (cont) cont.innerHTML = mezclarEvidencias(evs, s.evidenciasUrls)
+            .map(function (u) { return '<img loading="lazy" src="' + esc(u) + '">'; }).join('');
+        });
+      }
+
+      /* Igual que arriba pero para el avatar: sin esto el hueco 📷 hacía pensar
+       * que la foto de perfil se había perdido al editar desde otro equipo. */
+      function pintarPerfil() {
+        DB.obtenerFoto(s.uuid + ':perfil:1').then(function (f) {
+          var url = (f && Fotos.urlDeFoto(f)) || s.fotoPerfilUrl;
+          var hueco = document.getElementById('prev-perfil');
+          if (!url || !hueco) return;
+          var img = document.createElement('img');
+          img.className = 'avatar'; img.src = url;
+          hueco.replaceWith(img); img.id = 'prev-perfil';
         });
       }
 

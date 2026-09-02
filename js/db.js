@@ -77,6 +77,20 @@
       });
     },
     borrarFoto: function (clave) { return tx('fotos', 'readwrite', function (st) { st.delete(clave); }); },
+    /* Foto que VIENE de Drive (la tomó otro dispositivo): se guarda ya marcada
+     * como subida, con su URL. Si se guardara como pendiente, la siguiente
+     * sincronización la volvería a subir y se duplicaría en Drive. */
+    guardarFotoRemota: function (clave, blob, url) {
+      return tx('fotos', 'readwrite', function (st) { st.put({ clave: clave, blob: blob, subida: true, url: url }); });
+    },
+    /* uuids de servicios con al menos una foto que nunca llegó a Drive. */
+    uuidsConFotosSinSubir: function () {
+      return tx('fotos', 'readonly', function (st) { return pedir(st.getAll()); }).then(function (todas) {
+        var vistos = {};
+        (todas || []).forEach(function (f) { if (!f.subida) vistos[f.clave.split(':')[0]] = true; });
+        return Object.keys(vistos);
+      });
+    },
 
     guardarCatalogo: function (nombre, datos) {
       return tx('catalogos', 'readwrite', function (st) { st.put({ nombre: nombre, datos: datos }); });

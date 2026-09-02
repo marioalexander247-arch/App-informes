@@ -3,7 +3,7 @@
  * Fuentes de Google: caché en tiempo de ejecución (para que los íconos y
  * tipografías también funcionen sin conexión tras la primera visita).
  * Las llamadas a la API de Apps Script van solo por red; Sync maneja la cola. */
-var VERSION = 'appinf-v11';
+var VERSION = 'appinf-v13';
 var SHELL = [
   './', 'index.html', 'manifest.json', 'tailwind.js',
   'js/esquema-default.js', 'js/aprobacion.js', 'js/db.js', 'js/api.js',
@@ -15,7 +15,17 @@ var SHELL = [
 var FUENTES = ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  /* `cache: 'reload'` obliga a pedir cada archivo a la RED. Sin esto, el
+   * Service Worker nuevo se instalaba pero rellenaba su caché con las copias
+   * viejas guardadas por el navegador (HTTP cache), así que subir la versión
+   * no servía de nada: el dispositivo seguía ejecutando el código anterior. */
+  e.waitUntil(caches.open(VERSION).then(function (c) {
+    return Promise.all(SHELL.map(function (u) {
+      return fetch(new Request(u, { cache: 'reload' })).then(function (resp) {
+        if (resp && resp.ok) return c.put(u, resp);
+      });
+    }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {

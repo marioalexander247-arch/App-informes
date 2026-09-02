@@ -47,6 +47,10 @@
     pull: function (desde) { return get('pull', { desde: desde || '' }); },
     save: function (servicio) { return post('save', servicio); },
     upload: function (datos) { return post('upload', datos); }, // {uuid, tipo, n, mime, base64}
+    /* Descarga una foto ya subida. Es un GET con el fileId (no es un dato
+     * personal, y así se puede cachear). Ver leerFoto_ en Fotos.gs: Drive no
+     * deja pintar sus URLs en un <img> de otro dominio, hay que traer los bytes. */
+    foto: function (fileId) { return get('foto', { id: fileId }); },
     borrar: function (uuid) { return post('borrar', { uuid: uuid }); }
   };
 })(window);

@@ -212,6 +212,7 @@
   // ============================================================
   // OVERRIDE: cargarFotosDeDisco — antes /foto, ahora IndexedDB
   // ============================================================
+  var bajadas = {}; // uuid -> ya se pidieron sus fotos a la nube en esta sesión
   window.cargarFotosDeDisco = function () {
     var tipos = ['profile', 'ev1', 'ev2', 'ev3', 'ev4'];
     var refs = {};
@@ -253,6 +254,18 @@
           if (r.formImg) { r.formImg.src = u; r.formImg.classList.remove('hidden'); r.formPh.classList.add('hidden'); }
           if (r.repImg) { r.repImg.src = u; r.repImg.classList.remove('hidden'); r.repPh.classList.add('hidden'); }
         });
+        /* La URL de Drive puesta arriba es solo un intento: el navegador no
+         * puede pintar imágenes de Drive desde otro dominio (403), así que en
+         * el dispositivo que no tomó las fotos se quedaban en blanco. Se piden
+         * los bytes por la API y, cuando llegan, se repinta ya desde IndexedDB
+         * (a partir de ahí se ven también sin conexión). */
+        var uuid = INT.editingUuid;
+        if (!bajadas[uuid] && navigator.onLine && API.configurada()) {
+          bajadas[uuid] = true; // una sola vez por registro y sesión: evita repintar en bucle
+          Sync.bajarFotosDe(servicio).then(function (n) {
+            if (n && INT.editingUuid === uuid) window.cargarFotosDeDisco();
+          }).catch(function () { bajadas[uuid] = false; });
+        }
       }
     });
   };
@@ -455,6 +468,7 @@
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
       '<button id="int-sync" style="flex:1;padding:10px;border-radius:10px;border:1px solid #555;background:transparent;color:inherit;cursor:pointer">↻ Sincronizar</button>' +
+      '<button id="int-rehacer" style="flex:1;padding:10px;border-radius:10px;border:1px solid #555;background:transparent;color:inherit;cursor:pointer">🔄 Rehacer sincronización</button>' +
       '<button id="int-backup" style="flex:1;padding:10px;border-radius:10px;border:1px solid #555;background:transparent;color:inherit;cursor:pointer">📦 Respaldo .json</button>' +
       '<button id="int-cerrar" style="flex:1;padding:10px;border-radius:10px;border:1px solid #555;background:transparent;color:inherit;cursor:pointer">Cerrar</button>' +
       '</div></div>';
@@ -474,6 +488,16 @@
         .catch(function (e) { document.getElementById('int-msg').textContent = '❌ ' + e.message; });
     };
     document.getElementById('int-sync').onclick = function () { Sync.sincronizar(); };
+    /* Para el caso "en la otra pantalla sí lo veo y aquí no": vuelve a bajar el
+     * histórico completo en vez de solo lo cambiado desde el último pull. */
+    document.getElementById('int-rehacer').onclick = function () {
+      var msg = document.getElementById('int-msg');
+      msg.textContent = 'Rehaciendo sincronización… (puede tardar)';
+      Sync.resincronizarTodo().then(function () {
+        msg.textContent = '✅ Listo. Registros y fotos al día.';
+        window.loadRecords();
+      }).catch(function (e) { msg.textContent = '❌ ' + e.message; });
+    };
     document.getElementById('int-backup').onclick = function () {
       DB.listarServicios().then(function (lista) {
         var blob = new Blob([JSON.stringify({ exportado: new Date().toISOString(), servicios: lista }, null, 2)], { type: 'application/json' });

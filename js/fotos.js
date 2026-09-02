@@ -45,13 +45,18 @@
         return DB.guardarFoto(uuid + ':perfil:1', blob).then(function () { return blob; });
       });
     },
-    /* Agrega una evidencia (3:5). Devuelve el número asignado. */
-    agregarEvidencia: function (uuid, file) {
+    /* Agrega una evidencia (3:5). Devuelve el número asignado.
+     * `minimo` = cuántas evidencias tiene ya el servicio en Drive. Sin él, un
+     * dispositivo que recibió el informe por sincronización (y por tanto no
+     * tiene los blobs en su IndexedDB) empezaría a numerar desde 1 y
+     * sobrescribiría en Drive las evidencias que ya existían. */
+    agregarEvidencia: function (uuid, file, minimo) {
       return DB.fotosDe(uuid).then(function (fotos) {
         var nums = fotos
           .filter(function (f) { return f.clave.indexOf(uuid + ':evidencia:') === 0; })
           .map(function (f) { return parseInt(f.clave.split(':')[2], 10) || 0; });
-        var n = (nums.length ? Math.max.apply(null, nums) : 0) + 1;
+        nums.push(Number(minimo) || 0);
+        var n = Math.max.apply(null, nums) + 1;
         return procesar(file, 3 / 5).then(function (blob) {
           return DB.guardarFoto(uuid + ':evidencia:' + n, blob).then(function () { return n; });
         });
