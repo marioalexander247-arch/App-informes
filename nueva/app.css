@@ -312,13 +312,46 @@ body.con-fab .fab { display: block; }
 .capa-cuerpo { overflow-y: auto; padding: 0 20px 40px; max-width: 600px; width: 100%; margin: 0 auto; }
 .hoja-velo { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .35); animation: fundir .25s; }
 @keyframes fundir { from { opacity: 0; } }
+/* Hoja inferior estilo app nativa: el contenido se desplaza POR DENTRO (sin
+ * arrastrar el fondo) y solo se cierra arrastrando desde la barrita de arriba,
+ * así el gesto de cerrar nunca se pelea con el desplazamiento. */
 .hoja {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; max-width: 560px; margin: 0 auto; max-height: 88dvh; overflow-y: auto;
-  background: var(--bg); border-radius: 24px 24px 0 0; padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
-  animation: hoja-sube .36s var(--suave);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; max-width: 560px; margin: 0 auto; max-height: 88dvh;
+  display: flex; flex-direction: column; background: var(--bg); border-radius: 24px 24px 0 0;
+  animation: hoja-sube .36s var(--suave); will-change: transform;
 }
+.hoja.saliendo { transform: translateY(105%); transition: transform .26s cubic-bezier(.4, 0, 1, 1); }
+.hoja.arrastrando { animation: none; transition: none; }
+.hoja.volviendo { transition: transform .3s var(--resorte); }
 @keyframes hoja-sube { from { transform: translateY(100%); } }
-.hoja-asa { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 14px; }
+.hoja-asa { flex-shrink: 0; height: 30px; display: grid; place-items: center; touch-action: none; cursor: grab; }
+.hoja-asa span { width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
+.hoja-cuerpo {
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  padding: 0 20px calc(24px + env(safe-area-inset-bottom)); min-height: 0;
+}
+.capa-cuerpo { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+/* Foto: elegir cámara o galería */
+.opciones-foto { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.opcion-foto { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--sf); text-align: left; transition: transform .15s var(--resorte); }
+.opcion-foto:active { transform: scale(.98); }
+.opcion-foto svg { width: 26px; height: 26px; }
+.opcion-foto b { display: block; font-weight: 600; font-size: 16px; }
+.opcion-foto small { display: block; font-size: 12px; color: var(--mut); }
+
+/* Categorías en cadena: al elegir, queda solo la cápsula elegida (con lo que
+ * incluye) y una X para cambiarla */
+.cat-grupo { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
+.cat-grupo .cat-tit { width: 48px; flex-shrink: 0; font-size: 12px; color: var(--mut); }
+.cat-grupo .chips { padding-top: 0; flex: 1; }
+.cat-elegida { display: flex; align-items: center; gap: 8px; min-height: 40px; animation: abrir .28s var(--suave); }
+.cat-elegida .chip-on { min-height: 40px; padding: 0 16px; border-radius: 20px; background: var(--ink); color: var(--inv); font-weight: 700; display: inline-flex; align-items: center; }
+.cat-elegida .chip-on.ninguna { background: var(--sf2); color: var(--mut); font-weight: 600; }
+.cat-elegida small { color: var(--mut); font-size: 12px; flex: 1; min-width: 0; }
+.cat-elegida .x { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--mut); }
+.cat-elegida .x:active { background: var(--sf2); }
+.chips button.ninguna { color: var(--mut); border-style: dashed; }
 .hoja h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.02em; }
 .hoja .acciones { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .hoja .campo input { font-size: 15px; }

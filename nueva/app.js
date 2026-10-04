@@ -87,7 +87,39 @@
       2: 'realizó la prueba teórica, la cual es un componente obligatorio dentro del proceso de evaluación. En consecuencia, no es posible emitir una calificación final, ya que dicha prueba es fundamental para verificar los conocimientos normativos, técnicos y de seguridad vial requeridos.'
     }
   };
-  var CATEGORIAS = ['A1', 'A2', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+  /* Categorías de licencia en cadena: cada una incluye a las de abajo, así que
+   * se elige solo la más alta de cada grupo (moto y carro) o "No tiene". */
+  var CAT_MOTO = ['A1', 'A2'], CAT_CARRO = ['B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+  var INCLUYE = { A1: [], A2: ['A1'], B1: [], B2: ['B1'], B3: ['B1', 'B2'], C1: ['B1'], C2: ['B1', 'B2', 'C1'], C3: ['B1', 'B2', 'B3', 'C1', 'C2'] };
+  /* De un texto guardado ("A2-B1", "SIN LICENCIA") a {moto, carro}. */
+  function catDeTexto(texto) {
+    var t = String(texto || '').toUpperCase().trim(), r = { moto: '', carro: '' };
+    if (!t) return r;
+    var toks = t.split(/[-,\s/]+/).filter(Boolean);
+    function mayor(lista) {
+      var m = '';
+      toks.forEach(function (k) { if (lista.indexOf(k) > -1 && (!m || INCLUYE[k].length > INCLUYE[m].length)) m = k; });
+      return m;
+    }
+    r.moto = mayor(CAT_MOTO) || 'NO';
+    r.carro = mayor(CAT_CARRO) || 'NO';
+    return r;
+  }
+  function textoCategorias(f) {
+    var p = [];
+    if (f.catMoto && f.catMoto !== 'NO') p.push(f.catMoto);
+    if (f.catCarro && f.catCarro !== 'NO') p.push(f.catCarro);
+    if (!p.length && f.catMoto === 'NO' && f.catCarro === 'NO') return 'SIN LICENCIA';
+    return p.join('-');
+  }
+  /* Las multas llegan escritas de muchas formas ("NO", "-", vacío...). */
+  function normMultas(v) {
+    var s = normal(v).trim();
+    if (!s || s === 'no' || s === '-' || s === 'ninguna') return 'No';
+    if (s === 'si') return 'Sí';
+    if (s.indexOf('acuerdo') > -1) return 'Acuerdo de pago';
+    return v;
+  }
   var TEORIA = [
     { campo: 'tecnicas', etq: 'Técnicas de conducción', max: 10 },
     { campo: 'normatividad', etq: 'Normatividad', max: 10 },
@@ -196,7 +228,7 @@
     var emp = empresas().find(function (e) { return e.empresa === ult; });
     return {
       uuid: uuidNuevo(), formato: 'CDA COMPLETO',
-      nombre: '', cedula: '', contacto: '', categorias: '',
+      nombre: '', cedula: '', contacto: '', categorias: '', catMoto: '', catCarro: '',
       empresa: base ? base.empresa : (emp ? emp.empresa : ''),
       ciudad: base ? base.ciudad : (emp ? emp.ciudad : ''),
       fecha: base ? base.fecha : hoyISO(),
@@ -216,7 +248,8 @@
       empresa: s.empresa || '', ciudad: s.ciudad || '', fecha: aISO(s.fecha) || hoyISO(),
       // Los informes de antes no guardaban la casilla: se asume que llevaban vigencia
       conVigencia: s.evaluacion && s.evaluacion.conVigencia != null ? !!s.evaluacion.conVigencia : true,
-      vigenciaA2: aISO(s.vigenciaA2), vigenciaB1: aISO(s.vigenciaB1), multas: s.multas || 'No',
+      vigenciaA2: aISO(s.vigenciaA2), vigenciaB1: aISO(s.vigenciaB1), multas: normMultas(s.multas),
+      catMoto: catDeTexto(s.categorias).moto, catCarro: catDeTexto(s.categorias).carro,
       observaciones: s.observaciones || '', conclusiones: s.conclusiones || PLANTILLAS.concl[1],
       teoria: {}, practica: practicaVacia(0), todoOk: false
     };
@@ -564,12 +597,12 @@
     var be = $('#f-empresa');
     be.textContent = F.empresa || 'Elegir…'; be.classList.toggle('vacio', !F.empresa);
     [['#f-fecha', 'fecha'], ['#f-vig-a2', 'vigenciaA2'], ['#f-vig-b1', 'vigenciaB1']].forEach(function (p) {
-      var b = $(p[0]); b.textContent = fechaBoton(F[p[1]]); b.classList.toggle('vacio', !F[p[1]]);
+      var b = $(p[0]), v = F[p[1]];
+      b.textContent = fechaBoton(v) + (p[1] !== 'fecha' && v && F.fecha && v < F.fecha ? ' · vencida' : '');
+      b.classList.toggle('vacio', !v);
     });
-    var cats = String(F.categorias || '').split(/[-,\s]+/).filter(Boolean);
-    $('#f-categorias').innerHTML = CATEGORIAS.map(function (c) {
-      return '<button type="button" data-cat="' + c + '" class="' + (cats.indexOf(c) > -1 ? 'on' : '') + '" aria-pressed="' + (cats.indexOf(c) > -1) + '">' + c + '</button>';
-    }).join('');
+    if (F.catMoto === undefined) { var c0 = catDeTexto(F.categorias); F.catMoto = c0.moto; F.catCarro = c0.carro; }
+    pintarCategorias();
     $$('#f-multas button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === F.multas); });
     $('#f-vigencia').setAttribute('aria-pressed', F.conVigencia ? 'true' : 'false');
     $('#f-vigencia-ayuda').textContent = F.conVigencia ? 'Encendido: vence un año después de la prueba' : 'Apagado: el informe dice "Ingreso"';
@@ -579,10 +612,31 @@
     if (F.base) $('#eliminar-informe').textContent = 'Eliminar el informe N° ' + F.folio;
     pintarFotoPerfil();
   }
+  function pintarCategorias() {
+    [['moto', CAT_MOTO, 'catMoto', 'Moto'], ['carro', CAT_CARRO, 'catCarro', 'Carro']].forEach(function (g) {
+      var el = $('#cat-' + g[0]), v = F[g[2]];
+      if (v) {
+        var inc = v === 'NO' ? [] : INCLUYE[v] || [];
+        el.innerHTML = '<span class="cat-tit">' + g[3] + '</span><div class="cat-elegida">' +
+          '<span class="chip-on' + (v === 'NO' ? ' ninguna' : '') + '">' + (v === 'NO' ? 'No tiene' : v) + '</span>' +
+          '<small>' + (inc.length ? 'incluye ' + inc.join(', ') : '') + '</small>' +
+          '<button type="button" class="x" data-cat-quitar="' + g[2] + '" aria-label="Cambiar categoría de ' + g[3].toLowerCase() + '">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
+      } else {
+        el.innerHTML = '<span class="cat-tit">' + g[3] + '</span><div class="chips">' + g[1].map(function (c) {
+          return '<button type="button" data-cat-g="' + g[2] + '" data-cat="' + c + '">' + c + '</button>';
+        }).join('') + '<button type="button" class="ninguna" data-cat-g="' + g[2] + '" data-cat="NO">No tiene</button></div>';
+      }
+    });
+    $('#lbl-vig-a2').textContent = 'Licencia ' + (F.catMoto && F.catMoto !== 'NO' ? F.catMoto : 'moto') + ' · vence';
+    $('#lbl-vig-b1').textContent = 'Licencia ' + (F.catCarro && F.catCarro !== 'NO' ? F.catCarro : 'carro') + ' · vence';
+    $('#campo-vig-a2').hidden = F.catMoto === 'NO';
+    $('#campo-vig-b1').hidden = F.catCarro === 'NO';
+  }
   function resumenMas() {
     var p = [];
-    if (F.vigenciaA2) p.push('A2 ' + ddmmaaaa(F.vigenciaA2));
-    if (F.vigenciaB1) p.push('B1 ' + ddmmaaaa(F.vigenciaB1));
+    if (F.vigenciaA2 && F.catMoto !== 'NO') p.push((F.catMoto || 'Moto') + ' ' + ddmmaaaa(F.vigenciaA2));
+    if (F.vigenciaB1 && F.catCarro !== 'NO') p.push((F.catCarro || 'Carro') + ' ' + ddmmaaaa(F.vigenciaB1));
     p.push('Multas: ' + (F.multas === 'Acuerdo de pago' ? 'acuerdo' : F.multas.toLowerCase()));
     p.push(F.conVigencia ? 'con vigencia' : 'ingreso');
     $('#resumen-mas').textContent = p.join(' · ');
@@ -592,7 +646,7 @@
     if (!F.nombre.trim()) faltan.push({ campo: 'nombre', etq: 'el nombre' });
     if (!F.cedula.trim()) faltan.push({ campo: 'cedula', etq: 'la cédula' });
     if (!F.empresa) faltan.push({ campo: 'empresa', etq: 'la empresa' });
-    if (!F.categorias) faltan.push({ campo: 'categorias', etq: 'las categorías' });
+    if (!F.catMoto || !F.catCarro) faltan.push({ campo: 'categorias', etq: 'las categorías (o "No tiene")' });
     return faltan;
   }
   function listaFaltan(f) {
@@ -741,9 +795,19 @@
    * foto sale EXACTAMENTE con lo que se ve dentro de la guía. */
   var DESTINO = { perfil: { w: 600, h: 600, q: 0.9, redondo: true }, ev: { w: 600, h: 1000, q: 0.85 } };
   var cam = { stream: null, capa: null, video: null, frontal: false, destino: null };
+  /* Primero se elige: cámara (con guía) o galería (documentos y fotos ya
+   * guardadas en el teléfono). */
   function pedirFoto(destino) {
-    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return pedirArchivo(destino);
-    abrirCamara(destino);
+    var hayCam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    abrirHoja('<h2>' + (destino === 'perfil' ? 'Foto de perfil' : 'Evidencia ' + destino.slice(2)) + '</h2>' +
+      '<div class="opciones-foto">' +
+      (hayCam ? '<button type="button" class="opcion-foto" id="op-camara"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>' +
+        '<span><b>Tomar foto</b><small>Con guía de encuadre</small></span></button>' : '') +
+      '<button type="button" class="opcion-foto" id="op-galeria"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>' +
+      '<span><b>Elegir de la galería</b><small>Documentos o fotos guardadas · recorte centrado</small></span></button></div>');
+    if (hayCam) $('#op-camara').onclick = function () { cerrarCapa(function () { abrirCamara(destino); }); };
+    // El selector de archivos se abre DENTRO del toque (iPhone lo exige); luego se cierra la hoja
+    $('#op-galeria').onclick = function () { pedirArchivo(destino); cerrarCapa(); };
   }
   var fotoDestino = null;
   function pedirArchivo(destino) {
@@ -778,7 +842,7 @@
       if (!b) return;
       var a = b.dataset.cam;
       if (a === 'cerrar') cerrarCapa();
-      else if (a === 'galeria') cerrarCapa(function () { pedirArchivo(destino); });
+      else if (a === 'galeria') { pedirArchivo(destino); cerrarCapa(); }
       else if (a === 'disparar') capturar();
       else if (a === 'girar') {
         cam.frontal = !cam.frontal; pararStream();
@@ -880,7 +944,7 @@
       var s = Object.assign({}, existente || {}, {
         uuid: F.uuid, formato: 'CDA COMPLETO',
         nombre: F.nombre.trim(), cedula: F.cedula.trim(), empresa: F.empresa, ciudad: F.ciudad,
-        categorias: F.categorias, contacto: F.contacto.trim(), fecha: F.fecha,
+        categorias: textoCategorias(F), contacto: F.contacto.trim(), fecha: F.fecha,
         vigenciaA2: F.vigenciaA2, vigenciaB1: F.vigenciaB1, multas: F.multas,
         observaciones: F.observaciones.trim(), conclusiones: F.conclusiones.trim(),
         evidenciasUrls: (existente && existente.evidenciasUrls) || [],
@@ -962,11 +1026,18 @@
         set('prev-vigencia', v.getDate() + '/' + String(v.getMonth() + 1).padStart(2, '0') + '/' + v.getFullYear());
       } else set('prev-vigencia', 'Ingreso');
     }
-    set('prev-lic-moto', F.vigenciaA2 ? ddmmaaaa(F.vigenciaA2) : '—');
-    set('prev-lic-carro', F.vigenciaB1 ? ddmmaaaa(F.vigenciaB1) : '—');
-    var mp = document.getElementById('prev-multas-val');
-    mp.textContent = F.multas;
-    mp.className = F.multas === 'No' ? 'bg-blue-100' : F.multas === 'Sí' ? 'bg-red-100' : 'bg-amber-100';
+    /* Licencia: "No tiene" si no tiene esa categoría, "Vencida" si vence antes
+     * de la fecha de la prueba; si no, la fecha. */
+    [['prev-lic-moto', F.catMoto, F.vigenciaA2], ['prev-lic-carro', F.catCarro, F.vigenciaB1]].forEach(function (l) {
+      var el = document.getElementById(l[0]), t = '—', cls = '';
+      if (l[1] === 'NO') { t = 'No tiene'; cls = ' no-tiene'; }
+      else if (l[2] && F.fecha && l[2] < F.fecha) { t = 'Vencida ' + ddmmaaaa(l[2]); cls = ' vencida'; }
+      else if (l[2]) t = ddmmaaaa(l[2]);
+      el.textContent = t; el.className = 'inf-lic-fecha' + cls;
+    });
+    var mp = document.getElementById('prev-multas-val'), mu = normMultas(F.multas);
+    mp.textContent = mu;
+    mp.className = mu === 'No' ? 'bg-blue-100' : mu === 'Sí' ? 'bg-red-100' : 'bg-amber-100';
     set('prev-observaciones-text', F.observaciones || PLANTILLAS.obs[1]);
     set('prev-conclusiones-text', F.conclusiones || PLANTILLAS.concl[1]);
 
@@ -1115,17 +1186,45 @@
   }
 
   // ---------------------------------------------------------- hoja inferior
+  var hojaTurno = 0;
   function abrirHoja(html, alCerrar) {
-    $('#hoja-cuerpo').innerHTML = html;
-    $('#hoja').hidden = false; $('#hoja-velo').hidden = false;
-    encoger();
+    var turno = ++hojaTurno, h = $('#hoja');
     abrirCapa('hoja', function () {
-      $('#hoja').hidden = true; $('#hoja-velo').hidden = true;
-      desencoger();
+      h.style.transform = ''; h.classList.add('saliendo');
+      $('#hoja-velo').hidden = true; desencoger();
+      setTimeout(function () { if (turno === hojaTurno) { h.hidden = true; h.classList.remove('saliendo'); } }, 260);
       if (alCerrar) alCerrar();
     });
+    h.classList.remove('saliendo', 'volviendo', 'arrastrando'); h.style.transform = '';
+    $('#hoja-cuerpo').innerHTML = html; $('#hoja-cuerpo').scrollTop = 0;
+    h.style.animation = 'none'; h.hidden = false; void h.offsetWidth; h.style.animation = '';
+    $('#hoja-velo').hidden = false;
+    encoger();
   }
   $('#hoja-velo').addEventListener('click', function () { cerrarCapa(); });
+  /* Cerrar arrastrando SOLO desde la barrita de arriba: el contenido de la hoja
+   * se desplaza libremente y nunca compite con el gesto de cerrar. */
+  (function () {
+    var asa = $('#hoja-asa'), h = $('#hoja'), y0 = null, dy = 0, t0 = 0;
+    asa.addEventListener('pointerdown', function (e) {
+      y0 = e.clientY; dy = 0; t0 = performance.now();
+      h.classList.add('arrastrando'); asa.setPointerCapture(e.pointerId);
+    });
+    asa.addEventListener('pointermove', function (e) {
+      if (y0 === null) return;
+      dy = Math.max(0, e.clientY - y0);
+      h.style.transform = 'translateY(' + dy + 'px)';
+    });
+    function soltar() {
+      if (y0 === null) return;
+      y0 = null; h.classList.remove('arrastrando');
+      var vel = dy / Math.max(1, performance.now() - t0);
+      if (dy > 90 || (dy > 24 && vel > 0.6)) cerrarCapa();
+      else { h.classList.add('volviendo'); h.style.transform = ''; setTimeout(function () { h.classList.remove('volviendo'); }, 300); }
+    }
+    asa.addEventListener('pointerup', soltar);
+    asa.addEventListener('pointercancel', soltar);
+  })();
 
   function abrirAjustes() {
     var url = localStorage.getItem('apiUrl') || '', tok = localStorage.getItem('apiToken') || '';
@@ -1269,14 +1368,14 @@
       nuevaEvaluacion(muestra ? { empresa: muestra.empresa, ciudad: muestra.ciudad, fecha: hoyISO(), conVigencia: muestra.evaluacion && muestra.evaluacion.conVigencia } : null);
       return;
     }
-    if (d.cat && F) {
-      var cats = String(F.categorias || '').split(/[-,\s]+/).filter(Boolean);
-      var i = cats.indexOf(d.cat);
-      if (i > -1) cats.splice(i, 1); else cats.push(d.cat);
-      F.categorias = CATEGORIAS.filter(function (c) { return cats.indexOf(c) > -1; }).join('-');
-      t.classList.toggle('on', i === -1); t.setAttribute('aria-pressed', i === -1);
-      if (F.categorias) quitarFalta('categorias');
-      guardarBorrador(); return;
+    if (d.catG && F) {
+      F[d.catG] = d.cat; F.categorias = textoCategorias(F);
+      if (F.catMoto && F.catCarro) quitarFalta('categorias');
+      pintarCategorias(); resumenMas(); guardarBorrador(); return;
+    }
+    if (d.catQuitar && F) {
+      F[d.catQuitar] = ''; F.categorias = textoCategorias(F);
+      pintarCategorias(); resumenMas(); guardarBorrador(); return;
     }
     if (d.fecha && F) { elegirFecha(d.fecha); return; }
     if (d.teo && F) {

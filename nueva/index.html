@@ -106,7 +106,8 @@
 
       <div class="campo" data-campo="categorias">
         <span>Categorías</span>
-        <div class="chips" id="f-categorias"></div>
+        <div class="cat-grupo" id="cat-moto"></div>
+        <div class="cat-grupo" id="cat-carro"></div>
       </div>
 
       <div class="dos">
@@ -127,8 +128,8 @@
         <summary><span>Licencias, multas y vigencia</span><span class="resumen-mas" id="resumen-mas"></span></summary>
         <div class="mas-cuerpo">
           <div class="dos">
-            <div class="campo"><span>Licencia moto (A2)</span><button type="button" class="campo-boton" id="f-vig-a2" data-fecha="vigenciaA2">—</button></div>
-            <div class="campo"><span>Licencia carro (B1)</span><button type="button" class="campo-boton" id="f-vig-b1" data-fecha="vigenciaB1">—</button></div>
+            <div class="campo" id="campo-vig-a2"><span id="lbl-vig-a2">Licencia moto · vence</span><button type="button" class="campo-boton" id="f-vig-a2" data-fecha="vigenciaA2">—</button></div>
+            <div class="campo" id="campo-vig-b1"><span id="lbl-vig-b1">Licencia carro · vence</span><button type="button" class="campo-boton" id="f-vig-b1" data-fecha="vigenciaB1">—</button></div>
           </div>
           <div class="campo">
             <span>Multas</span>
@@ -559,8 +560,8 @@
 <!-- ============================ HOJA INFERIOR ============================ -->
 <div class="hoja-velo" id="hoja-velo" hidden></div>
 <div class="hoja" id="hoja" role="dialog" aria-modal="true" hidden>
-  <div class="hoja-asa"></div>
-  <div id="hoja-cuerpo"></div>
+  <div class="hoja-asa" id="hoja-asa" aria-hidden="true"><span></span></div>
+  <div id="hoja-cuerpo" class="hoja-cuerpo"></div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-txt"></span><button type="button" id="toast-accion" hidden></button></div>

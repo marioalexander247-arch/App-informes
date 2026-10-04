@@ -261,7 +261,10 @@
 
 
 /* --- Equivalentes de Tailwind usados dentro de la hoja --- */
-#prev-multas-val.bg-amber-100 { background: #fef3c7 !important; color: #92400e !important; }
+/* Multas: "No" va en el azul neutro de los demás datos; "Sí" en rojo; acuerdo en ámbar */
+#prev-multas-val.bg-amber-100 { background: #D97706 !important; color: #fff !important; }
+.inf-lic-fecha.vencida { color: var(--inf-rojo); font-weight: 700; }
+.inf-lic-fecha.no-tiene { color: var(--inf-tenue); }
 .preview-page .hidden { display: none !important; }
 .preview-page .flex { display: flex; }
 .preview-page .inline-block { display: inline-block; }
