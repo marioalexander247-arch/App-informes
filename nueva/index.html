@@ -91,7 +91,7 @@
         </span>
       </button>
       <div class="persona-cab-txt">
-        <label class="campo campo-grande">
+        <label class="campo campo-grande" data-campo="nombre">
           <span>Nombre completo</span>
           <input id="f-nombre" type="text" autocomplete="off" autocapitalize="words" placeholder="Nombre y apellidos">
         </label>
@@ -100,18 +100,18 @@
 
     <div class="form">
       <div class="dos">
-        <label class="campo"><span>Cédula</span><input id="f-cedula" type="text" inputmode="numeric" autocomplete="off"></label>
+        <label class="campo" data-campo="cedula"><span>Cédula</span><input id="f-cedula" type="text" inputmode="numeric" autocomplete="off"></label>
         <label class="campo"><span>Teléfono</span><input id="f-contacto" type="tel" inputmode="tel" autocomplete="off"></label>
       </div>
 
-      <div class="campo">
+      <div class="campo" data-campo="categorias">
         <span>Categorías</span>
         <div class="chips" id="f-categorias"></div>
       </div>
 
       <div class="dos">
-        <label class="campo"><span>Empresa</span><select id="f-empresa"></select></label>
-        <label class="campo"><span>Fecha de prueba</span><input id="f-fecha" type="date"></label>
+        <div class="campo" data-campo="empresa"><span>Empresa</span><button type="button" class="campo-boton" id="f-empresa">Elegir…</button></div>
+        <div class="campo"><span>Fecha de prueba</span><button type="button" class="campo-boton" id="f-fecha" data-fecha="fecha">—</button></div>
       </div>
 
       <div class="campo">
@@ -127,8 +127,8 @@
         <summary><span>Licencias, multas y vigencia</span><span class="resumen-mas" id="resumen-mas"></span></summary>
         <div class="mas-cuerpo">
           <div class="dos">
-            <label class="campo"><span>Licencia moto (A2)</span><input id="f-vig-a2" type="date"></label>
-            <label class="campo"><span>Licencia carro (B1)</span><input id="f-vig-b1" type="date"></label>
+            <div class="campo"><span>Licencia moto (A2)</span><button type="button" class="campo-boton" id="f-vig-a2" data-fecha="vigenciaA2">—</button></div>
+            <div class="campo"><span>Licencia carro (B1)</span><button type="button" class="campo-boton" id="f-vig-b1" data-fecha="vigenciaB1">—</button></div>
           </div>
           <div class="campo">
             <span>Multas</span>
@@ -145,6 +145,7 @@
         </div>
       </details>
       <p class="aviso" id="persona-aviso" hidden></p>
+      <button type="button" class="eliminar" id="eliminar-informe" hidden>Eliminar este informe</button>
     </div>
 
     <div class="pie-accion">
@@ -562,7 +563,15 @@
   <div id="hoja-cuerpo"></div>
 </div>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-txt"></span><button type="button" id="toast-accion" hidden></button></div>
+
+<!-- ============================ DIÁLOGO ============================ -->
+<div class="dlg-velo" id="dlg-velo" hidden></div>
+<div class="dlg" id="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dlg-titulo" hidden>
+  <h3 id="dlg-titulo"></h3>
+  <p id="dlg-texto"></p>
+  <div class="dlg-botones"><button type="button" class="btn-borde" id="dlg-no"></button><button type="button" class="btn-tinta" id="dlg-si"></button></div>
+</div>
 <input type="file" id="archivo-foto" accept="image/*" capture="environment" hidden>
 
 <script src="../js/esquema-default.js"></script>

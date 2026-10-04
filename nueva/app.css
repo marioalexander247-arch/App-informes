@@ -325,11 +325,102 @@ body.con-fab .fab { display: block; }
 .vista-correo { white-space: pre-wrap; font-size: 14px; line-height: 1.5; background: var(--sf); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 12px; max-height: 40dvh; overflow-y: auto; }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); z-index: 80; transform: translate(-50%, 20px);
+  position: fixed; left: 0; right: 0; margin: 0 auto; width: fit-content; bottom: calc(100px + env(safe-area-inset-bottom)); z-index: 80; transform: translateY(20px);
   background: var(--ink); color: var(--inv); padding: 12px 18px; border-radius: 14px; font-size: 14px; font-weight: 500;
   opacity: 0; pointer-events: none; transition: opacity .25s, transform .35s var(--resorte); max-width: calc(100vw - 40px);
 }
-.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.toast.on { opacity: 1; transform: none; }
+
+/* ---------- campos tipo botón (empresa, fechas) ---------- */
+.campo-boton { text-align: left; font-size: 18px; padding: 2px 0; min-height: 28px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.campo-boton.vacio { color: var(--mut); }
+
+/* Campo que faltó: se marca con suavidad y se quita al escribir */
+.campo.falta { border-bottom-color: var(--no); animation: falta-pulso .9s var(--suave); }
+.campo.falta > span:first-child { color: var(--no); }
+.campo.falta > span:first-child::after { content: ' · falta'; font-weight: 600; }
+@keyframes falta-pulso { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 50% { transform: translateX(3px); } 75% { transform: translateX(-2px); } }
+.eliminar { margin-top: 28px; color: var(--no); font-weight: 600; font-size: 15px; padding: 12px 0; align-self: flex-start; }
+
+/* ---------- fondo que se encoge bajo hojas y diálogos ---------- */
+.app { transition: transform .38s var(--suave), filter .38s var(--suave), border-radius .38s; }
+body.encogido { overflow: hidden; }
+body.encogido .app { transform: scale(.94); border-radius: 22px; overflow: hidden; }
+.dlg-velo, .hoja-velo {
+  position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .28);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fundir .3s var(--suave);
+}
+:root[data-theme="dark"] .dlg-velo, :root[data-theme="dark"] .hoja-velo { background: rgba(0, 0, 0, .5); }
+
+/* ---------- diálogo propio ---------- */
+.dlg {
+  position: fixed; left: 50%; top: 50%; z-index: 70; width: min(360px, calc(100vw - 40px));
+  transform: translate(-50%, -50%); background: var(--bg); border-radius: 24px; padding: 24px 20px 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .25); animation: dlg-entra .34s var(--resorte);
+}
+@keyframes dlg-entra { from { opacity: 0; transform: translate(-50%, -46%) scale(.94); } }
+.dlg h3 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.02em; }
+.dlg p { margin: 0 0 20px; color: var(--mut); font-size: 15px; line-height: 1.45; }
+.dlg-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dlg-botones .btn-tinta, .dlg-botones .btn-borde { height: 50px; font-size: 15px; }
+.dlg.peligro .btn-tinta { background: var(--no); color: #fff; }
+
+/* toast con acción (Deshacer, Galería…) */
+.toast { display: flex; align-items: center; gap: 16px; pointer-events: none; }
+.toast span { flex: 1; }
+.toast.on { pointer-events: auto; }
+.toast button { color: var(--inv); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 4px 0; white-space: nowrap; }
+
+/* ---------- selector de rueda (empresa, fechas) ---------- */
+.selector-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.selector-atajos { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+.selector-atajos button { min-height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line); font-size: 14px; }
+.ruedas { position: relative; display: flex; gap: 4px; height: 220px; margin: 6px 0 16px; }
+.ruedas::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 88px; height: 44px; border-radius: 12px;
+  background: var(--sf2); pointer-events: none;
+}
+.rueda {
+  position: relative; flex: 1; height: 220px; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  scrollbar-width: none;
+}
+.rueda::-webkit-scrollbar { display: none; }
+.rueda-pad { height: 88px; }
+.rueda-op {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; scroll-snap-align: center;
+  font-size: 19px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px;
+  will-change: transform, opacity; transform-origin: center;
+}
+.rueda-op.sel { font-weight: 700; }
+.rueda-ancha .rueda-op { justify-content: flex-start; padding-left: 18px; }
+
+/* ---------- cámara con guía ---------- */
+.cam-capa {
+  position: fixed; inset: 0; z-index: 90; background: #08090a; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 20px;
+  animation: fundir .25s;
+}
+.cam-marco { position: relative; overflow: hidden; border-radius: 16px; background: #000; flex-shrink: 1; min-height: 0; }
+.cam-marco-1-1 { width: min(84vw, 58vh); aspect-ratio: 1 / 1; }
+.cam-marco-3-5 { height: min(62vh, 120vw); aspect-ratio: 3 / 5; }
+.cam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-espejo { transform: scaleX(-1); }
+.cam-mascara { position: absolute; inset: 0; pointer-events: none; }
+.cam-mascara-redonda { border-radius: 50%; box-shadow: 0 0 0 2000px rgba(0, 0, 0, .55); }
+.cam-guia { position: absolute; inset: 0; pointer-events: none; border: 2px solid rgba(255, 255, 255, .92); border-radius: 14px; }
+.cam-guia-redonda { border-radius: 50%; border-style: dashed; }
+.cam-ayuda { color: #e6e8ea; font-size: 13px; text-align: center; max-width: 320px; line-height: 1.45; opacity: .9; }
+.cam-barra { display: flex; align-items: center; gap: 30px; }
+.cam-disparo {
+  width: 72px; height: 72px; border-radius: 50%; background: #fff; border: 4px solid rgba(255, 255, 255, .35);
+  box-shadow: 0 0 0 3px #08090a inset; transition: transform .15s var(--resorte);
+}
+.cam-disparo:active { transform: scale(.9); }
+.cam-sec { width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; display: grid; place-items: center; }
+.cam-flash { position: fixed; inset: 0; background: #fff; z-index: 95; pointer-events: none; animation: flash .35s ease-out forwards; }
+@keyframes flash { from { opacity: .85; } to { opacity: 0; } }
 
 /* ---------- PC: lista | trabajo | informe en vivo ---------- */
 @media (min-width: 1100px) {
@@ -350,6 +441,7 @@ body.con-fab .fab { display: block; }
   .siguiente .num { font-size: 64px; }
 }
 
+@media (min-width: 1100px) { body.encogido .app { transform: none; border-radius: 0; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

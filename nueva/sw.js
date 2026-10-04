@@ -5,7 +5,7 @@
  *   refresca en segundo plano para la próxima vez.
  * - Fuentes de Google: guardadas en su propia caché tras la primera visita.
  * - La API de Apps Script nunca pasa por aquí (otro dominio). */
-var VERSION = 'nueva-v2';
+var VERSION = 'nueva-v3';
 var SHELL = [
   './', 'index.html', 'app.css', 'informe.css', 'app.js', 'manifest.json',
   'icons/logo.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png',
