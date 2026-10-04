@@ -1697,33 +1697,33 @@
                                 <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
                                     <div class="flex justify-between items-center">
                                         <label class="text-sm text-on-surface font-medium">Técnicas de Conducción</label>
-                                        <span id="val-teoricas-1" class="font-display text-lg text-primary font-bold">10.0</span>
+                                        <span id="val-teoricas-1" class="font-display text-lg text-primary font-bold">10</span>
                                     </div>
-                                    <input id="score-teoricas-1" oninput="handleRangeChange(1)" class="w-full" max="10" min="0" step="0.5" type="range" value="10">
+                                    <input id="score-teoricas-1" oninput="handleRangeChange(1)" class="w-full" max="10" min="0" step="1" type="range" value="10">
                                 </div>
                                 <!-- Normatividad -->
                                 <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
                                     <div class="flex justify-between items-center">
                                         <label class="text-sm text-on-surface font-medium">Normatividad</label>
-                                        <span id="val-teoricas-2" class="font-display text-lg text-primary font-bold">10.0</span>
+                                        <span id="val-teoricas-2" class="font-display text-lg text-primary font-bold">10</span>
                                     </div>
-                                    <input id="score-teoricas-2" oninput="handleRangeChange(2)" class="w-full" max="10" min="0" step="0.5" type="range" value="10">
+                                    <input id="score-teoricas-2" oninput="handleRangeChange(2)" class="w-full" max="10" min="0" step="1" type="range" value="10">
                                 </div>
                                 <!-- Elementos EPP -->
                                 <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
                                     <div class="flex justify-between items-center">
                                         <label class="text-sm text-on-surface font-medium">Elementos EPP <span class="text-on-surface-variant text-xs">(máx 5)</span></label>
-                                        <span id="val-teoricas-3" class="font-display text-lg text-primary font-bold">5.0</span>
+                                        <span id="val-teoricas-3" class="font-display text-lg text-primary font-bold">5</span>
                                     </div>
-                                    <input id="score-teoricas-3" oninput="handleRangeChange(3)" class="w-full" max="5" min="0" step="0.5" type="range" value="5">
+                                    <input id="score-teoricas-3" oninput="handleRangeChange(3)" class="w-full" max="5" min="0" step="1" type="range" value="5">
                                 </div>
                                 <!-- Mecánica Básica -->
                                 <div class="neomorphic-card-outset flex flex-col gap-2.5 p-3.5 rounded-2xl">
                                     <div class="flex justify-between items-center">
                                         <label class="text-sm text-on-surface font-medium">Mecánica Básica <span class="text-on-surface-variant text-xs">(máx 5)</span></label>
-                                        <span id="val-teoricas-4" class="font-display text-lg text-primary font-bold">5.0</span>
+                                        <span id="val-teoricas-4" class="font-display text-lg text-primary font-bold">5</span>
                                     </div>
-                                    <input id="score-teoricas-4" oninput="handleRangeChange(4)" class="w-full" max="5" min="0" step="0.5" type="range" value="5">
+                                    <input id="score-teoricas-4" oninput="handleRangeChange(4)" class="w-full" max="5" min="0" step="1" type="range" value="5">
                                 </div>
                             </div>
                         </div>
@@ -2393,16 +2393,16 @@
             const origMec = parseFloat(orig.mecanica || 0);
 
             if (origTec !== theoryScores.tecnicas) {
-                diffs.push(`• Técnicas de Conducción: ${origTec.toFixed(1)} ➔ ${theoryScores.tecnicas.toFixed(1)}`);
+                diffs.push(`• Técnicas de Conducción: ${origTec} ➔ ${theoryScores.tecnicas}`);
             }
             if (origNorm !== theoryScores.normatividad) {
-                diffs.push(`• Normatividad: ${origNorm.toFixed(1)} ➔ ${theoryScores.normatividad.toFixed(1)}`);
+                diffs.push(`• Normatividad: ${origNorm} ➔ ${theoryScores.normatividad}`);
             }
             if (origEpp !== theoryScores.epp) {
-                diffs.push(`• Elementos EPP: ${origEpp.toFixed(1)} ➔ ${theoryScores.epp.toFixed(1)}`);
+                diffs.push(`• Elementos EPP: ${origEpp} ➔ ${theoryScores.epp}`);
             }
             if (origMec !== theoryScores.mecanica) {
-                diffs.push(`• Mecánica Básica: ${origMec.toFixed(1)} ➔ ${theoryScores.mecanica.toFixed(1)}`);
+                diffs.push(`• Mecánica Básica: ${origMec} ➔ ${theoryScores.mecanica}`);
             }
 
             // Compare maneuvers
@@ -3300,13 +3300,13 @@ function renderManeuversList() {
         function handleRangeChange(index) {
             const input = document.getElementById(`score-teoricas-${index}`);
             const valLabel = document.getElementById(`val-teoricas-${index}`);
-            let score = parseFloat(input.value).toFixed(1);
+            let score = Math.round(parseFloat(input.value)); // la teoría se califica en enteros
             valLabel.textContent = score;
 
             // Save to state
             const keys = ["tecnicas", "normatividad", "epp", "mecanica"];
             const key = keys[index - 1];
-            theoryScores[key] = parseFloat(score);
+            theoryScores[key] = score;
 
             // Adjust slider color dynamically if score is low (relativo al máximo:
             // por debajo del 70% del puntaje máximo del tema se marca en rojo)
@@ -3595,10 +3595,10 @@ function renderManeuversList() {
             document.getElementById("prev-conclusiones-text").textContent = document.getElementById("part-conclusiones").value || templates.concl[1];
 
             // Update Theory Scores
-            document.getElementById("prev-val-1").textContent = theoryScores.tecnicas.toFixed(1);
-            document.getElementById("prev-val-2").textContent = theoryScores.normatividad.toFixed(1);
-            document.getElementById("prev-val-3").textContent = theoryScores.epp.toFixed(1);
-            document.getElementById("prev-val-4").textContent = theoryScores.mecanica.toFixed(1);
+            document.getElementById("prev-val-1").textContent = theoryScores.tecnicas;
+            document.getElementById("prev-val-2").textContent = theoryScores.normatividad;
+            document.getElementById("prev-val-3").textContent = theoryScores.epp;
+            document.getElementById("prev-val-4").textContent = theoryScores.mecanica;
 
             // Barras: ancho = puntaje / máximo del tema (EPP y Mecánica son sobre 5)
             document.getElementById("prev-bar-1").style.width = (theoryScores.tecnicas / theoryMax.tecnicas * 100) + "%";
