@@ -1,16 +1,26 @@
 {
-  "name": "App Informes",
-  "short_name": "Informes",
+  "name": "Tesos Informes",
+  "short_name": "Tesos",
   "description": "Evaluaciones teórico-prácticas por formatos modulares: crear, consultar, fotos e informes PDF. Funciona sin internet.",
   "lang": "es",
-  "start_url": "./",
+  "start_url": "./nueva/",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#eef2f6",
-  "theme_color": "#2f3134",
+  "background_color": "#F6F5F1",
+  "theme_color": "#F6F5F1",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "nueva/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "nueva/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

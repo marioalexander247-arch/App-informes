@@ -771,7 +771,7 @@
       '<div class="acciones"><button type="button" class="btn-tinta" id="aj-guardar">Guardar y sincronizar</button>' +
       '<button type="button" class="btn-borde" id="aj-rehacer">Traer todo de nuevo desde la nube</button>' +
       '<button type="button" class="btn-borde" id="aj-respaldo">Descargar respaldo .json</button>' +
-      '<a class="btn-borde" href="../index.html" style="text-decoration:none">Abrir la app clásica</a></div>');
+      '<a class="btn-borde" href="../clasica.html" style="text-decoration:none">App clásica (respaldo)</a></div>');
     $('#aj-guardar').onclick = function () {
       API.guardarConfig($('#aj-url').value, $('#aj-tok').value);
       $('#aj-msg').textContent = 'Probando…';
