@@ -299,6 +299,46 @@
             opacity: 0.2;
         }
 
+        /* Selector "Tipo de informe" (paso 1) */
+        .formato-selector {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .formato-op {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 52px;
+            padding: 8px 10px;
+            border-radius: 14px;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            box-shadow: 3px 3px 7px var(--panel-shadow-dark), -3px -3px 7px var(--panel-shadow-light);
+            color: var(--on-surface-variant);
+            text-align: left;
+            transition: box-shadow 0.2s ease, color 0.2s ease, transform 0.12s ease;
+        }
+        .formato-op:active { transform: scale(0.97); }
+        .formato-op .material-symbols-outlined { font-size: 22px; flex-shrink: 0; }
+        .formato-op-txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+        .formato-op-txt strong { font-size: 13px; color: var(--on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .formato-op-txt small { font-size: 10px; font-weight: 600; }
+        .formato-op.is-activo {
+            box-shadow: var(--input-shadow);
+            background-color: var(--input-bg);
+            color: var(--primary);
+        }
+        .formato-op.is-activo .formato-op-txt strong { color: var(--primary); }
+        .formato-op.is-pronto { opacity: 0.55; }
+        .formato-op.is-pronto small { text-transform: uppercase; letter-spacing: 0.04em; }
+        @media (max-width: 420px) {
+            .formato-selector { gap: 6px; }
+            .formato-op { flex-direction: column; justify-content: center; text-align: center; gap: 2px; padding: 8px 4px; }
+            .formato-op-txt { align-items: center; }
+        }
+        .dark .formato-op { border-color: transparent; }
+
         /* Neomorphic Inset Panel */
         .neomorphic-inset-panel {
             background-color: var(--input-bg);
@@ -1547,7 +1587,27 @@
                         
                         <!-- Step 1: Datos del Participante -->
                         <div id="step-1" class="wizard-step flex flex-col gap-5">
-                            <h2 class="font-display text-lg text-on-surface font-bold flex items-center gap-2 border-b border-outline-variant/40 pb-2">
+                            <!-- TIPO DE INFORME. Hoy solo el CDA (4 categorías) está listo; los
+                                 demás formatos se muestran como "Próximamente" hasta definir
+                                 sus criterios. Al activarlos, cada botón fija formatoActivo. -->
+                            <div class="flex flex-col gap-2">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Tipo de informe</span>
+                                <div id="formato-selector" class="formato-selector" role="radiogroup" aria-label="Tipo de informe">
+                                    <button type="button" class="formato-op is-activo" role="radio" aria-checked="true" data-formato="CDA COMPLETO" onclick="elegirFormato(this)">
+                                        <span class="material-symbols-outlined">fact_check</span>
+                                        <span class="formato-op-txt"><strong>CDA</strong><small>4 categorías</small></span>
+                                    </button>
+                                    <button type="button" class="formato-op is-pronto" role="radio" aria-checked="false" aria-disabled="true" data-formato="AUTOMOVIL" onclick="elegirFormato(this)">
+                                        <span class="material-symbols-outlined">directions_car</span>
+                                        <span class="formato-op-txt"><strong>Automóvil</strong><small>Próximamente</small></span>
+                                    </button>
+                                    <button type="button" class="formato-op is-pronto" role="radio" aria-checked="false" aria-disabled="true" data-formato="MOTO" onclick="elegirFormato(this)">
+                                        <span class="material-symbols-outlined">two_wheeler</span>
+                                        <span class="formato-op-txt"><strong>Moto</strong><small>Próximamente</small></span>
+                                    </button>
+                                </div>
+                            </div>
+                            <h2class="font-display text-lg text-on-surface font-bold flex items-center gap-2 border-b border-outline-variant/40 pb-2">
                                 <span class="material-symbols-outlined text-primary text-xl">person</span>
                                 Datos del Participante
                             </h2>
@@ -2121,6 +2181,24 @@
         var editingNombreOriginal = null; // nombre con el que se cargó el registro (para renombrar fotos)
 
         var empresasCatalog = [];
+
+        // Tipo de informe. Solo "CDA COMPLETO" está activo; Automóvil y Moto quedan
+        // en "Próximamente" hasta definir sus maniobras, pesos y diseño del informe.
+        var formatoActivo = "CDA COMPLETO";
+        function elegirFormato(btn) {
+            if (btn.classList.contains("is-pronto")) {
+                const nombre = btn.querySelector("strong").textContent;
+                alert(`🚧 El informe de ${nombre} estará disponible próximamente.\n\nPor ahora usa el informe CDA (4 categorías).`);
+                return;
+            }
+            formatoActivo = btn.dataset.formato;
+            document.querySelectorAll("#formato-selector .formato-op").forEach(b => {
+                const activo = b === btn;
+                b.classList.toggle("is-activo", activo);
+                b.setAttribute("aria-checked", activo ? "true" : "false");
+            });
+        }
+
         let participantData = {
             id: 28,
             nombre: "",
@@ -3483,7 +3561,7 @@ function renderManeuversList() {
                 const conVigencia = document.getElementById("part-vigencia-check").checked;
                 if (conVigencia) {
                     const vigenciaDate = new Date(aa + 1, mm - 1, dd);
-                    const day = String(vigenciaDate.getDate()).padStart(2, '0');
+                    const day = String(vigenciaDate.getDate()); // d/mm/aaaa, como el PDF (7/04/2027)
                     const month = String(vigenciaDate.getMonth() + 1).padStart(2, '0');
                     const year = vigenciaDate.getFullYear();
                     document.getElementById("prev-vigencia").textContent = `${day}/${month}/${year}`;
@@ -3493,10 +3571,12 @@ function renderManeuversList() {
             }
 
             const licA2 = document.getElementById("part-vigencia-a2").value;
-            document.getElementById("prev-lic-moto").textContent = licA2 ? formatDate(licA2) : "26/08/2035";
+            // Sin fecha se deja la raya: antes salían las fechas del ejemplo (26/08/2035,
+            // 21/09/2026) impresas en informes de personas que no tenían esa licencia.
+            document.getElementById("prev-lic-moto").textContent = licA2 ? formatDate(licA2) : "—";
 
             const licB1 = document.getElementById("part-vigencia-b1").value;
-            document.getElementById("prev-lic-carro").textContent = licB1 ? formatDate(licB1) : "21/09/2026";
+            document.getElementById("prev-lic-carro").textContent = licB1 ? formatDate(licB1) : "—";
 
             // Multas
             const multasVal = document.getElementById("part-multas").value;
@@ -3537,8 +3617,13 @@ function renderManeuversList() {
             const theoryRatio = theorySum / THEORY_TOTAL;           // 0..1
             const theoryPassed = theoryRatio >= 0.8;
             const theoryPct = Math.round(theoryRatio * 100) + "%";
+            // Igual que el PDF de referencia (folio 28: notas 9+10+4+5):
+            //   "Respuestas Correctas" = suma de la teoría (28 de 30)
+            //   insignia verde junto a las barras = % de la teoría (93%)
+            //   "Puntaje Total de la prueba" = ponderado final (97%), se pinta abajo.
+            const correctasEl = document.getElementById("prev-correctas");
+            if (correctasEl) correctasEl.textContent = Number.isInteger(theorySum) ? theorySum : theorySum.toFixed(1).replace(".", ",");
             document.getElementById("prev-avg-score").textContent = theoryPct;
-            document.getElementById("prev-pct-teoria").textContent = theoryPct;
 
             const prevResTeoria = document.getElementById("prev-res-teoria");
             if (theoryPassed) {
@@ -3563,6 +3648,7 @@ function renderManeuversList() {
             const practiceAvg = (pctMotocarro + pctCuatrimoto + pctCarro + pctMoto) / 4; // Datos!M19
             const ponderado = practiceAvg * 0.6 + theoryRatio * 0.4;                     // Datos!M21
             const isGeneralApproved = !algunVehiculoReprueba && ponderado >= 0.8;
+            document.getElementById("prev-pct-teoria").textContent = Math.round(ponderado * 100) + "%";
 
             const generalPill = document.getElementById("prev-res-general");
             if (generalPill) {
