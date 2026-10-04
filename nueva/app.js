@@ -188,6 +188,21 @@
       return DB.setMeta('folioTecho', n).then(function () { return n; });
     });
   }
+  /* Realinear el consecutivo. El contador nunca baja solo (así un número
+   * borrado no se reutiliza), pero tras informes de prueba hay que poder
+   * devolverlo a mano. Nunca por debajo del mayor informe que exista: eso
+   * repetiría números. El contador vive en cada dispositivo. */
+  function ultimoExistente() {
+    var max = 0;
+    SERV.forEach(function (s) { var f = folioDe(s); if (f && f > max) max = f; });
+    return max;
+  }
+  function realinearConsecutivo(proximo) {
+    var n = parseInt(proximo, 10), minimo = ultimoExistente() + 1;
+    if (!(n >= minimo)) return Promise.reject(new Error('Debe ser ' + minimo + ' o más: el N° ' + (minimo - 1) + ' ya existe'));
+    techo = n - 1;
+    return DB.setMeta('folioTecho', techo).then(function () { return n; });
+  }
 
   // --------------------------------------------------------- datos locales
   function recargar() {
@@ -1235,7 +1250,26 @@
       '<div class="acciones"><button type="button" class="btn-tinta" id="aj-guardar">Guardar y sincronizar</button>' +
       '<button type="button" class="btn-borde" id="aj-rehacer">Traer todo de nuevo desde la nube</button>' +
       '<button type="button" class="btn-borde" id="aj-respaldo">Descargar respaldo .json</button>' +
-      '<a class="btn-borde" href="../clasica.html" style="text-decoration:none">App clásica (respaldo)</a></div>');
+      '<a class="btn-borde" href="../clasica.html" style="text-decoration:none">App clásica (respaldo)</a></div>' +
+      '<h2 style="margin-top:28px">Consecutivo</h2><p class="sub" id="aj-cons"></p>' +
+      '<label class="campo"><span>Próximo número de informe</span><input id="aj-prox" type="number" inputmode="numeric" min="' + (ultimoExistente() + 1) + '" value="' + (ultimoExistente() + 1) + '"></label>' +
+      '<p class="sub" id="aj-cons-msg"></p>' +
+      '<div class="acciones"><button type="button" class="btn-borde" id="aj-alinear">Continuar en este número</button></div>');
+    function pintarConsecutivo() {
+      var ult = ultimoExistente(), sig = siguienteNumero();
+      var sinNum = SERV.filter(function (s) { return !folioDe(s); }).length;
+      $('#aj-cons').textContent = 'El último informe guardado es el N° ' + ult + '. El próximo saldrá con el N° ' + sig +
+        (sig > ult + 1 ? ' (se saltan ' + (sig - ult - 1) + ' por informes borrados o de prueba).' : '.') +
+        (sinNum ? ' Ojo: hay ' + sinNum + ' informe' + (sinNum > 1 ? 's' : '') + ' sin número; la app clásica les asigna uno y puede volver a subir el contador.' : '');
+    }
+    pintarConsecutivo();
+    $('#aj-alinear').onclick = function () {
+      realinearConsecutivo($('#aj-prox').value).then(function (n) {
+        pintarConsecutivo();
+        $('#aj-cons-msg').textContent = 'Listo: el próximo informe será el N° ' + n + '. Hazlo también en los otros dispositivos.';
+        if (rutaActual === 'inicio') pintarInicio();
+      }).catch(function (e) { $('#aj-cons-msg').textContent = e.message; });
+    };
     $('#aj-guardar').onclick = function () {
       API.guardarConfig($('#aj-url').value, $('#aj-tok').value);
       $('#aj-msg').textContent = 'Probando…';
