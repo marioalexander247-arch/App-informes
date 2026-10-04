@@ -776,6 +776,21 @@
       }
     });
   }
+  /* Si la sincronización trajo fotos de la ficha abierta (las tomó otro
+   * dispositivo), se pintan ya. Antes había que salir y volver a entrar: en el
+   * PC se veía la foto de perfil, que bajó primero, y las evidencias no. */
+  function fotosNuevasDeLaFicha() {
+    if (!F) return;
+    var uuid = F.uuid;
+    return DB.fotosDe(uuid).then(function (fs) {
+      if (!F || F.uuid !== uuid) return;
+      var nuevas = fs.some(function (f) {
+        var p = f.clave.split(':');
+        return !FOTO[p[1] === 'perfil' ? 'perfil' : 'ev' + p[2]];
+      });
+      if (nuevas) cargarFotos().then(refrescarFotos);
+    });
+  }
   function refrescarFotos() { pintarFotoPerfil(); if ($('#v-cierre').classList.contains('activa')) pintarEvidencias(); pintarInforme(); }
   function pintarFotoPerfil() {
     var img = $('#foto-perfil-img');
@@ -1130,6 +1145,7 @@
       ? '<strong class="' + (okG ? 'ok-t' : 'no-t') + '">' + (okG ? 'Aprobado ' : 'Reprobado ') + Math.round(r.total * 100) + '%</strong><span class="sub">' + esc(F.nombre) + ' · ' + esc(F.empresa) + '</span>'
       : '<span class="sub">Así va quedando. Se emite desde Cierre.</span>';
     escalarHojas();
+    if (F.base && rutaActual === 'informe') programarPdf();
   }
   function escalarHojas() {
     var cont = $('#hojas');
@@ -1160,9 +1176,114 @@
     return 'Informe N° ' + f.folio + ' · ' + f.nombre + ' (C.C. ' + f.cedula + ')\n' +
       f.empresa + ' · ' + fechaLarga(f.fecha) + '\nResultado: ' + r.resultado + ' (' + Math.round(r.total * 100) + '%)';
   }
-  function compartirTexto(texto) {
+  function compartirTexto(texto) { // resumen de la tanda (solo texto)
     if (navigator.share) return navigator.share({ text: texto }).catch(function () {});
     window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+  }
+
+  // ------------------------------------------------ WhatsApp con el PDF
+  /* El botón entrega el INFORME (PDF), no solo un texto. El PDF se fabrica en
+   * el teléfono, una imagen por hoja en A4, y se pasa a la hoja de compartir
+   * del sistema, donde sale WhatsApp / WhatsApp Business. Ninguna web puede
+   * abrir WhatsApp con un archivo ya adjunto: el sistema siempre pregunta la app.
+   *
+   * Trampa: compartir solo se permite justo después del toque. Si el PDF se
+   * fabricara al tocar (1–3 s en el celular), el sistema ya no deja compartir.
+   * Por eso se prepara en segundo plano al abrir el informe y el toque solo lo
+   * entrega. */
+  var pdfListo = null; // { clave, archivo, promesa }
+  function cargarScript(src) {
+    return new Promise(function (ok, mal) {
+      var s = document.createElement('script');
+      s.src = src; s.onload = ok; s.onerror = function () { mal(new Error('Sin conexión para preparar el PDF')); };
+      document.head.appendChild(s);
+    });
+  }
+  var libsPdf = null;
+  function cargarLibsPdf() {
+    if (!libsPdf) {
+      libsPdf = Promise.all([cargarScript('../vendor/html2canvas.min.js'), cargarScript('../vendor/jspdf.umd.min.js')])
+        .catch(function (e) { libsPdf = null; throw e; });
+    }
+    return libsPdf;
+  }
+  function paginasInforme() { return $$('#hojas .preview-page'); }
+  /* Lo que se ve en las hojas: si cambia algo (datos o fotos), el PDF se rehace */
+  function claveInforme() { return paginasInforme().map(function (p) { return p.innerHTML; }).join('|'); }
+  function nombrePdf(f) { return ('Informe ' + f.folio + ' - ' + f.nombre).replace(/[\\/:*?"<>|]/g, '').trim() + '.pdf'; }
+  function fabricarPdf() {
+    var f = F, clave = claveInforme();
+    if (pdfListo && pdfListo.clave === clave) return pdfListo.promesa;
+    var imgs = $$('#hojas .preview-page img').filter(function (i) { return i.getAttribute('src') && !i.classList.contains('hidden'); });
+    // Fotos cargadas antes de copiar (decode() puede quedarse colgado: espera simple con tope)
+    var promesa = Promise.all(imgs.map(function (i) {
+      return i.complete ? null : new Promise(function (ok) { i.addEventListener('load', ok); i.addEventListener('error', ok); setTimeout(ok, 4000); });
+    }))
+      .then(cargarLibsPdf)
+      .then(function () {
+        var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
+        return paginasInforme().reduce(function (p, pag, n) {
+          return p.then(function () {
+            return window.html2canvas(pag, {
+              scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+              onclone: function (doc) { // en la copia, la hoja a tamaño real y sin marco
+                var c = doc.getElementById(pag.id);
+                c.style.transform = 'none'; c.style.boxShadow = 'none'; c.style.border = '0';
+                c.parentElement.style.overflow = 'visible'; c.parentElement.style.width = 'auto'; c.parentElement.style.height = 'auto';
+                // html2canvas pinta mal las sombras con esquinas redondas (franjas grises): fuera
+                var st = doc.createElement('style');
+                st.textContent = '.preview-page *{box-shadow:none!important}';
+                doc.head.appendChild(st);
+              }
+            }).then(function (cv) {
+              if (n) pdf.addPage();
+              var rel = cv.height / cv.width, w = 210, h = w * rel;
+              if (h > 297) { h = 297; w = h / rel; }
+              pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', (210 - w) / 2, 0, w, h);
+            });
+          });
+        }, Promise.resolve()).then(function () {
+          var archivo = new File([pdf.output('blob')], nombrePdf(f), { type: 'application/pdf' });
+          if (pdfListo && pdfListo.clave === clave) pdfListo.archivo = archivo;
+          return archivo;
+        });
+      });
+    pdfListo = { clave: clave, archivo: null, promesa: promesa };
+    promesa.catch(function () { if (pdfListo && pdfListo.clave === clave) pdfListo = null; });
+    return promesa;
+  }
+  var tPdf;
+  function programarPdf() {
+    clearTimeout(tPdf);
+    tPdf = setTimeout(function () {
+      if (F && F.base && rutaActual === 'informe') fabricarPdf().catch(function () {});
+    }, 700);
+  }
+  function compartirPdf(archivo, f) {
+    var texto = textoInforme(f);
+    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      return navigator.share({ files: [archivo], title: archivo.name, text: texto }).catch(function (e) {
+        if (e.name === 'AbortError') return; // lo cerró la persona
+        // Se venció el permiso del toque: un toque más y sale
+        if (e.name === 'NotAllowedError') { toast('Informe listo', { texto: 'Enviar', fn: function () { compartirPdf(archivo, f); } }); return; }
+        throw e;
+      });
+    }
+    // PC o navegador que no comparte archivos: se descarga y se abre WhatsApp
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(archivo); a.download = archivo.name; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+    toast('PDF descargado: adjúntalo en el chat');
+  }
+  function enviarWhatsApp() {
+    var btn = $('#btn-whatsapp'), f = F, clave = claveInforme();
+    if (pdfListo && pdfListo.clave === clave && pdfListo.archivo) { compartirPdf(pdfListo.archivo, f); return; }
+    btn.classList.add('cargando'); btn.disabled = true;
+    fabricarPdf()
+      .then(function (archivo) { return compartirPdf(archivo, f); })
+      .catch(function (e) { toast('No se pudo preparar el PDF: ' + e.message); })
+      .then(function () { btn.classList.remove('cargando'); btn.disabled = false; });
   }
 
   // --------------------------------------------------- enviar tanda (correo)
@@ -1383,6 +1504,7 @@
     $('#estado-nube').classList.remove('girando');
     reintentarBorrados().then(function () { return Promise.all([recargar(), cargarCatalogos()]); }).then(function () {
       if (rutaActual === 'inicio') pintarInicio(); else pintarNube();
+      return fotosNuevasDeLaFicha();
     });
   });
   window.addEventListener('online', pintarNube);
@@ -1554,7 +1676,7 @@
   $('#emitir').addEventListener('click', emitir);
   $('#informe-editar').addEventListener('click', function () { ir('persona'); });
   $('#btn-pdf').addEventListener('click', imprimir);
-  $('#btn-whatsapp').addEventListener('click', function () { compartirTexto(textoInforme(F)); });
+  $('#btn-whatsapp').addEventListener('click', enviarWhatsApp);
   $('#btn-otra').addEventListener('click', function () {
     nuevaEvaluacion({ empresa: F.empresa, ciudad: F.ciudad, fecha: hoyISO(), conVigencia: F.conVigencia });
   });

@@ -271,6 +271,13 @@ textarea:focus { border-color: var(--ink); }
 .pie-informe { flex-direction: row; }
 .pie-informe > * { width: auto; max-width: none; flex: 1; }
 .pie-informe .btn-tinta { flex: 1.3; height: 50px; font-size: 15px; }
+/* WhatsApp: solo el logo (en tinta: negro de día, claro de noche), sin marco */
+.pie-informe .btn-wa { flex: 0 0 50px; width: 50px; padding: 0; border: 0; background: transparent; color: var(--ink); }
+.logo-wa path { fill: currentColor; stroke: none; }
+.btn-wa:disabled { cursor: progress; }
+.btn-wa.cargando .logo-wa { animation: wa-latir 1s ease-in-out infinite; }
+@keyframes wa-latir { 50% { opacity: .35; transform: scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .btn-wa.cargando .logo-wa { animation: none; opacity: .4; } }
 
 /* ---------- menú + (gooey) ---------- */
 .fab { position: fixed; right: max(20px, calc(50vw - 260px)); bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 40; width: 60px; height: 60px; display: none; }

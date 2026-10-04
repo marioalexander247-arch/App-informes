@@ -40,7 +40,13 @@
           });
         });
       });
-      return cadena.then(function () { return servicio; });
+      return cadena.then(function () {
+        /* Fotos nuevas = cambio del registro. Sin mover updatedAt, los otros
+         * dispositivos (que solo piden "lo cambiado desde la última vez") nunca
+         * se enteraban de las URLs nuevas y el informe salía sin esas fotos. */
+        if (pendientes.length) servicio.updatedAt = new Date().toISOString();
+        return servicio;
+      });
     });
   }
 

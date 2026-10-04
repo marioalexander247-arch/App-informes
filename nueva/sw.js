@@ -5,12 +5,13 @@
  *   refresca en segundo plano para la próxima vez.
  * - Fuentes de Google: guardadas en su propia caché tras la primera visita.
  * - La API de Apps Script nunca pasa por aquí (otro dominio). */
-var VERSION = 'nueva-v6';
+var VERSION = 'nueva-v7';
 var SHELL = [
   './', 'index.html', 'app.css', 'informe.css', 'app.js', 'manifest.json',
   'icons/logo.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png',
   '../js/esquema-default.js', '../js/aprobacion.js', '../js/db.js', '../js/api.js', '../js/sync.js',
-  '../img/firma-valentina-ochoa.png', '../img/firma-mario-cordoba.png'
+  '../img/firma-valentina-ochoa.png', '../img/firma-mario-cordoba.png',
+  '../vendor/html2canvas.min.js', '../vendor/jspdf.umd.min.js' // PDF para WhatsApp, también sin señal
 ];
 var FUENTES = ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
 
