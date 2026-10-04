@@ -141,9 +141,9 @@
   var CAT = null;        // catálogos (config, formatos, modulos, esquemas, empresas)
   var SERV = [];         // servicios emitidos (de la base local compartida)
   var BORR = {};         // borradores de esta app: uuid -> ficha
+  var BORRADOS = [];     // uuids eliminados aquí que aún no se borran en la nube
   var F = null;          // ficha abierta
   var ORIGINAL = null;   // copia de la ficha emitida al empezar a editarla
-  var techo = 0;         // folioTecho compartido con la app clásica
   var abiertoVeh = 'moto';
 
   function activo(x) { return x !== false && String(x).toUpperCase() !== 'NO'; }
@@ -175,41 +175,32 @@
     var ev = s.evaluacion;
     return ev && ev.folio ? Number(ev.folio) : null;
   }
-  function siguienteNumero() {
-    var max = techo;
-    SERV.forEach(function (s) { var f = folioDe(s); if (f && f > max) max = f; });
-    return max + 1;
-  }
-  function tomarFolio() {
-    return DB.getMeta('folioTecho').then(function (v) {
-      techo = Math.max(techo, Number(v || 0));
-      var n = siguienteNumero();
-      techo = n;
-      return DB.setMeta('folioTecho', n).then(function () { return n; });
-    });
-  }
-  /* Realinear el consecutivo. El contador nunca baja solo (así un número
-   * borrado no se reutiliza), pero tras informes de prueba hay que poder
-   * devolverlo a mano. Nunca por debajo del mayor informe que exista: eso
-   * repetiría números. El contador vive en cada dispositivo. */
+  /* El consecutivo se alinea SIEMPRE a lo que existe: el próximo es el mayor
+   * número guardado + 1, igual en todos los dispositivos (sale de los datos
+   * sincronizados, no de un contador de cada teléfono). Borrar el último
+   * informe libera su número; borrar uno del medio deja el hueco (nunca se
+   * reutiliza porque hay números más altos). Un informe ya entregado no se
+   * borra: se edita. */
   function ultimoExistente() {
     var max = 0;
     SERV.forEach(function (s) { var f = folioDe(s); if (f && f > max) max = f; });
     return max;
   }
-  function realinearConsecutivo(proximo) {
-    var n = parseInt(proximo, 10), minimo = ultimoExistente() + 1;
-    if (!(n >= minimo)) return Promise.reject(new Error('Debe ser ' + minimo + ' o más: el N° ' + (minimo - 1) + ' ya existe'));
-    techo = n - 1;
-    return DB.setMeta('folioTecho', techo).then(function () { return n; });
+  function siguienteNumero() { return ultimoExistente() + 1; }
+  /* 'folioTecho' se sigue escribiendo solo para que la app clásica (respaldo)
+   * numere igual; esta app ya no lo lee. */
+  function anotarTecho(n) { return DB.setMeta('folioTecho', n).catch(function () {}); }
+  function tomarFolio() {
+    var n = siguienteNumero();
+    return anotarTecho(n).then(function () { return n; });
   }
 
   // --------------------------------------------------------- datos locales
   function recargar() {
-    return Promise.all([DB.listarServicios(), DB.getMeta('borradoresNueva'), DB.getMeta('folioTecho')]).then(function (r) {
-      SERV = r[0] || [];
+    return Promise.all([DB.listarServicios(), DB.getMeta('borradoresNueva'), DB.getMeta('borradosPendientes')]).then(function (r) {
+      BORRADOS = r[2] || [];
+      SERV = (r[0] || []).filter(function (s) { return BORRADOS.indexOf(s.uuid) < 0; });
       BORR = r[1] || {};
-      techo = Math.max(techo, Number(r[2] || 0));
     });
   }
   var tGuardar;
@@ -506,6 +497,10 @@
         return r;
       });
       ruedas.forEach(function (r) { r.iniciar(); }); // la hoja ya es visible: se coloca al instante
+      // Al colocar las ruedas el navegador desplaza la hoja unos píxeles para
+      // "mostrar" la opción elegida; arriba del todo, para que se pueda cerrar
+      var cuerpo = $('#hoja-cuerpo');
+      cuerpo.scrollTop = 0; requestAnimationFrame(function () { cuerpo.scrollTop = 0; });
       $('#sel-listo').onclick = function () { elegido = ruedas.map(function (r) { return r.valor(); }); cerrarCapa(); };
       $$('[data-atajo]', $('#hoja-cuerpo')).forEach(function (b) {
         b.onclick = function () {
@@ -981,42 +976,64 @@
     }).catch(function (e) { btn.disabled = false; toast('No se pudo guardar: ' + e.message); });
   }
 
-  /* Eliminar (traído de la app clásica). El número NO se recicla: el contador
-   * 'folioTecho' se queda donde estaba, así nunca circulan dos informes
-   * distintos con el mismo número. */
+  /* Eliminar (traído de la app clásica). Si es el último número, ese número
+   * queda libre para el próximo; si es uno del medio, el hueco se queda. */
   function eliminarInforme() {
     var s = F && F.base ? SERV.find(function (x) { return x.uuid === F.base; }) : null;
     if (!s) return;
     var enNube = s.estado === 'sincronizado';
-    var folio = F.folio, nombre = F.nombre;
+    var folio = F.folio, nombre = F.nombre, esUltimo = folio >= ultimoExistente();
     dialogo({
       titulo: 'Eliminar el informe N° ' + folio,
-      texto: nombre + '. Se borra del teléfono' + (enNube ? ' y de la nube (sus fotos van a la papelera de Drive, se pueden recuperar)' : '') +
-        '. El N° ' + folio + ' no se vuelve a usar.',
+      texto: nombre + '. Se borra del teléfono' + (enNube ? ' y de la nube (sus fotos van a la papelera de Drive, se pueden recuperar)' : '') + '. ' +
+        (esUltimo ? 'El N° ' + folio + ' queda libre y lo usará el próximo informe.' : 'El N° ' + folio + ' no se vuelve a usar, porque ya hay números más altos.') +
+        ' Si ya lo entregaste, mejor edítalo.',
       si: 'Eliminar', no: 'Cancelar', peligro: true
     }).then(function (ok) {
       if (!ok) { toast('No se eliminó nada'); return; }
       var uuid = s.uuid;
-      techo = Math.max(techo, folio);
-      DB.setMeta('folioTecho', techo)
-        .then(function () { return DB.fotosDe(uuid); })
-        .then(function (fs) { return Promise.all(fs.map(function (f) { return DB.borrarFoto(f.clave); })); })
-        .then(function () { return DB.borrarServicio(uuid); })
+      borrarLocal(uuid)
         .then(function () {
           if (!enNube) return 'ok';
-          if (!(API.configurada() && navigator.onLine)) return 'sinSenal';
-          return API.borrar(uuid).then(function () { return 'ok'; }, function () { return 'fallo'; });
+          return pendienteDeBorrar(uuid).then(reintentarBorrados).then(function () {
+            return BORRADOS.indexOf(uuid) > -1 ? 'sinSenal' : 'ok';
+          });
         })
         .then(function (res) {
           F.sucio = false; cerrarFicha();
           return recargar().then(function () {
+            anotarTecho(ultimoExistente());
             ir('inicio');
-            toast(res === 'sinSenal' ? 'Eliminado del teléfono. Con señal, elimínalo otra vez para quitarlo de la nube'
-              : res === 'fallo' ? 'Eliminado del teléfono; la nube no respondió' : 'Informe N° ' + folio + ' eliminado');
+            toast(res === 'sinSenal' ? 'Eliminado del teléfono. Se quitará de la nube cuando haya señal'
+              : 'Informe N° ' + folio + ' eliminado');
           });
         })
         .catch(function (e) { toast('No se pudo eliminar: ' + e.message); });
     });
+  }
+  function borrarLocal(uuid) {
+    return DB.fotosDe(uuid)
+      .then(function (fs) { return Promise.all(fs.map(function (f) { return DB.borrarFoto(f.clave); })); })
+      .then(function () { return DB.borrarServicio(uuid); });
+  }
+  /* Borrados que todavía no llegan a la nube (sin señal o falló). Antes se
+   * perdían: el siguiente pull completo devolvía el informe y su número
+   * "resucitaba". Ahora quedan en cola, no cuentan para el consecutivo y se
+   * reintentan en cada sincronización. */
+  function pendienteDeBorrar(uuid) {
+    if (BORRADOS.indexOf(uuid) < 0) BORRADOS.push(uuid);
+    return DB.setMeta('borradosPendientes', BORRADOS);
+  }
+  function reintentarBorrados() {
+    if (!BORRADOS.length || !API.configurada() || !navigator.onLine) return Promise.resolve();
+    return BORRADOS.slice().reduce(function (p, uuid) {
+      return p.then(function () {
+        return API.borrar(uuid).then(function () {
+          BORRADOS = BORRADOS.filter(function (u) { return u !== uuid; });
+          return borrarLocal(uuid); // por si un pull lo alcanzó a traer de vuelta
+        }, function () {});
+      });
+    }, Promise.resolve()).then(function () { return DB.setMeta('borradosPendientes', BORRADOS); });
   }
 
   // ---------------------------------------------------------------- informe
@@ -1204,41 +1221,116 @@
   var hojaTurno = 0;
   function abrirHoja(html, alCerrar) {
     var turno = ++hojaTurno, h = $('#hoja');
+    var velo = $('#hoja-velo');
     abrirCapa('hoja', function () {
+      // Sale desde donde la dejó el dedo (si se arrastró) y el velo se funde
       h.style.transform = ''; h.classList.add('saliendo');
-      $('#hoja-velo').hidden = true; desencoger();
-      setTimeout(function () { if (turno === hojaTurno) { h.hidden = true; h.classList.remove('saliendo'); } }, 260);
+      velo.style.transition = 'opacity .26s'; velo.style.opacity = '0';
+      desencoger();
+      setTimeout(function () {
+        if (turno !== hojaTurno) return;
+        h.hidden = true; h.classList.remove('saliendo'); h.style.transitionDuration = '';
+        velo.hidden = true; velo.style.transition = ''; velo.style.opacity = '';
+      }, 260);
       if (alCerrar) alCerrar();
     });
-    h.classList.remove('saliendo', 'volviendo', 'arrastrando'); h.style.transform = '';
+    h.classList.remove('saliendo', 'volviendo', 'arrastrando'); h.style.transform = ''; h.style.transitionDuration = '';
     $('#hoja-cuerpo').innerHTML = html; $('#hoja-cuerpo').scrollTop = 0;
     h.style.animation = 'none'; h.hidden = false; void h.offsetWidth; h.style.animation = '';
-    $('#hoja-velo').hidden = false;
+    velo.style.transition = ''; velo.style.opacity = ''; velo.hidden = false;
     encoger();
   }
   $('#hoja-velo').addEventListener('click', function () { cerrarCapa(); });
-  /* Cerrar arrastrando SOLO desde la barrita de arriba: el contenido de la hoja
-   * se desplaza libremente y nunca compite con el gesto de cerrar. */
+  /* Cerrar como en Instagram: se arrastra hacia abajo desde CUALQUIER parte de
+   * la hoja, no solo desde la barrita. Para no pelear con otros gestos, cada
+   * gesto se decide UNA vez, en los primeros píxeles:
+   *  - hacia abajo con el contenido ya arriba del todo → mueve la hoja;
+   *  - si el contenido todavía puede desplazarse → es scroll normal;
+   *  - de lado → no es de la hoja;
+   *  - en las ruedas de los selectores (y textos largos) manda su propio gesto.
+   * Desde la barrita siempre se arrastra. Se usan eventos táctiles porque solo
+   * así se puede frenar el scroll del navegador justo a tiempo. */
   (function () {
-    var asa = $('#hoja-asa'), h = $('#hoja'), y0 = null, dy = 0, t0 = 0;
-    asa.addEventListener('pointerdown', function (e) {
-      y0 = e.clientY; dy = 0; t0 = performance.now();
-      h.classList.add('arrastrando'); asa.setPointerCapture(e.pointerId);
-    });
-    asa.addEventListener('pointermove', function (e) {
-      if (y0 === null) return;
-      dy = Math.max(0, e.clientY - y0);
-      h.style.transform = 'translateY(' + dy + 'px)';
-    });
-    function soltar() {
-      if (y0 === null) return;
-      y0 = null; h.classList.remove('arrastrando');
-      var vel = dy / Math.max(1, performance.now() - t0);
-      if (dy > 90 || (dy > 24 && vel > 0.6)) cerrarCapa();
-      else { h.classList.add('volviendo'); h.style.transform = ''; setTimeout(function () { h.classList.remove('volviendo'); }, 300); }
+    var h = $('#hoja'), velo = $('#hoja-velo'), asa = $('#hoja-asa');
+    var PROPIO = '.rueda, textarea, input[type="range"], [data-gesto-propio]';
+    var g = null; // gesto en curso
+    function puedeSubir(el) {
+      for (; el && el !== h; el = el.parentElement) if (el.scrollTop > 0) return true;
+      return false;
     }
-    asa.addEventListener('pointerup', soltar);
-    asa.addEventListener('pointercancel', soltar);
+    function puedeBajar(el) {
+      for (; el && el !== h; el = el.parentElement) {
+        var oy = getComputedStyle(el).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true;
+      }
+      return false;
+    }
+    function empezar(x, y, target, desdeAsa) {
+      g = { x0: x, y0: y, y: 0, decidido: desdeAsa, mio: desdeAsa, target: target, alto: h.offsetHeight,
+            muestras: [{ y: y, t: performance.now() }] };
+      if (desdeAsa) h.classList.add('arrastrando');
+    }
+    function decidir(dx, dy) {
+      if (Math.abs(dx) > Math.abs(dy) || g.target.closest(PROPIO)) return false;
+      return dy > 0 ? !puedeSubir(g.target) : !puedeBajar(g.target);
+    }
+    function seguir(x, y, e) {
+      if (!g) return;
+      var dy = y - g.y0;
+      if (!g.decidido) {
+        var dx = x - g.x0;
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        g.decidido = true; g.mio = decidir(dx, dy);
+        if (!g.mio) { g = null; return; }
+        g.y0 = y; dy = 0; // arranca desde aquí, sin salto
+        g.muestras = [{ y: y, t: performance.now() }];
+        h.classList.add('arrastrando');
+        var foco = document.activeElement;
+        if (foco && h.contains(foco)) foco.blur(); // baja el teclado
+      }
+      if (e && e.cancelable) e.preventDefault();
+      var t = performance.now();
+      g.y = dy; g.muestras.push({ y: y, t: t });
+      while (g.muestras.length > 2 && t - g.muestras[0].t > 100) g.muestras.shift();
+      // Hacia arriba no se va: resiste como goma
+      h.style.transform = 'translateY(' + (dy >= 0 ? dy : -Math.pow(-dy, 0.6)) + 'px)';
+      velo.style.opacity = String(Math.max(0.2, 1 - Math.max(0, dy) / g.alto));
+    }
+    function terminar() {
+      if (!g) return;
+      var x = g; g = null;
+      if (!x.mio) return;
+      h.classList.remove('arrastrando');
+      var a = x.muestras[0], b = x.muestras[x.muestras.length - 1];
+      var vel = (b.y - a.y) / Math.max(16, b.t - a.t); // px/ms, positivo = hacia abajo
+      // Un tirón rápido cierra aunque sea corto; uno lento, si pasó un tercio
+      if (x.y > 8 && (vel > 0.5 || (x.y > x.alto * 0.3 && vel > -0.1))) {
+        var ms = Math.round(Math.max(140, Math.min(260, (x.alto - x.y) / Math.max(vel, 1.2))));
+        h.style.transitionDuration = ms + 'ms'; // sigue la velocidad del dedo
+        cerrarCapa();
+      } else {
+        h.classList.add('volviendo'); h.style.transform = '';
+        velo.style.transition = 'opacity .3s'; velo.style.opacity = '';
+        setTimeout(function () { h.classList.remove('volviendo'); velo.style.transition = ''; }, 320);
+      }
+    }
+    // Dedo (celular)
+    h.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { terminar(); return; }
+      var t = e.touches[0];
+      empezar(t.clientX, t.clientY, e.target, !!e.target.closest('.hoja-asa'));
+    }, { passive: true });
+    h.addEventListener('touchmove', function (e) { seguir(e.touches[0].clientX, e.touches[0].clientY, e); }, { passive: false });
+    h.addEventListener('touchend', terminar);
+    h.addEventListener('touchcancel', terminar);
+    // Ratón (PC): desde la barrita
+    asa.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse') return;
+      asa.setPointerCapture(e.pointerId); empezar(e.clientX, e.clientY, e.target, true);
+    });
+    asa.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse') seguir(e.clientX, e.clientY); });
+    asa.addEventListener('pointerup', function (e) { if (e.pointerType === 'mouse') terminar(); });
+    asa.addEventListener('pointercancel', function (e) { if (e.pointerType === 'mouse') terminar(); });
   })();
 
   function abrirAjustes() {
@@ -1251,25 +1343,11 @@
       '<button type="button" class="btn-borde" id="aj-rehacer">Traer todo de nuevo desde la nube</button>' +
       '<button type="button" class="btn-borde" id="aj-respaldo">Descargar respaldo .json</button>' +
       '<a class="btn-borde" href="../clasica.html" style="text-decoration:none">App clásica (respaldo)</a></div>' +
-      '<h2 style="margin-top:28px">Consecutivo</h2><p class="sub" id="aj-cons"></p>' +
-      '<label class="campo"><span>Próximo número de informe</span><input id="aj-prox" type="number" inputmode="numeric" min="' + (ultimoExistente() + 1) + '" value="' + (ultimoExistente() + 1) + '"></label>' +
-      '<p class="sub" id="aj-cons-msg"></p>' +
-      '<div class="acciones"><button type="button" class="btn-borde" id="aj-alinear">Continuar en este número</button></div>');
-    function pintarConsecutivo() {
-      var ult = ultimoExistente(), sig = siguienteNumero();
-      var sinNum = SERV.filter(function (s) { return !folioDe(s); }).length;
-      $('#aj-cons').textContent = 'El último informe guardado es el N° ' + ult + '. El próximo saldrá con el N° ' + sig +
-        (sig > ult + 1 ? ' (se saltan ' + (sig - ult - 1) + ' por informes borrados o de prueba).' : '.') +
-        (sinNum ? ' Ojo: hay ' + sinNum + ' informe' + (sinNum > 1 ? 's' : '') + ' sin número; la app clásica les asigna uno y puede volver a subir el contador.' : '');
-    }
-    pintarConsecutivo();
-    $('#aj-alinear').onclick = function () {
-      realinearConsecutivo($('#aj-prox').value).then(function (n) {
-        pintarConsecutivo();
-        $('#aj-cons-msg').textContent = 'Listo: el próximo informe será el N° ' + n + '. Hazlo también en los otros dispositivos.';
-        if (rutaActual === 'inicio') pintarInicio();
-      }).catch(function (e) { $('#aj-cons-msg').textContent = e.message; });
-    };
+      '<h2 style="margin-top:28px">Consecutivo</h2><p class="sub" id="aj-cons"></p>');
+    var ult = ultimoExistente(), pend = BORRADOS.length;
+    $('#aj-cons').textContent = 'El último informe guardado es el N° ' + ult + ' y el próximo será el N° ' + (ult + 1) +
+      '. El número sigue solo a lo que existe: si eliminas el último informe, su número vuelve a quedar libre.' +
+      (pend ? ' Hay ' + pend + ' eliminado' + (pend > 1 ? 's' : '') + ' esperando señal para quitarse de la nube.' : '');
     $('#aj-guardar').onclick = function () {
       API.guardarConfig($('#aj-url').value, $('#aj-tok').value);
       $('#aj-msg').textContent = 'Probando…';
@@ -1303,7 +1381,7 @@
   window.addEventListener('sync:inicio', function () { $('#estado-nube').classList.add('girando'); $('#estado-nube .txt').textContent = 'Sincronizando'; });
   window.addEventListener('sync:fin', function () {
     $('#estado-nube').classList.remove('girando');
-    Promise.all([recargar(), cargarCatalogos()]).then(function () {
+    reintentarBorrados().then(function () { return Promise.all([recargar(), cargarCatalogos()]); }).then(function () {
       if (rutaActual === 'inicio') pintarInicio(); else pintarNube();
     });
   });
