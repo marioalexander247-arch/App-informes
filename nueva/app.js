@@ -757,23 +757,46 @@
   }
 
   // ------------------------------------------------------------------ fotos
-  var FOTO = {}; // 'perfil' | 'ev1'..'ev4' -> objectURL
-  function revocarFotos() {
-    Object.keys(FOTO).forEach(function (k) { if (FOTO[k] && FOTO[k].indexOf('blob:') === 0) URL.revokeObjectURL(FOTO[k]); });
-    FOTO = {};
+  /* Las fotos se pintan como data: URL leída de IndexedDB, no con enlaces
+   * blob: temporales. Con blob: el PC mostraba la foto de perfil pero las
+   * evidencias daban "ERR_FILE_NOT_FOUND": el enlace se invalidaba (cargas
+   * cruzadas al abrir/cerrar fichas mientras sincronizaba) y la pantalla se
+   * quedaba apuntando a la nada. Un data: no caduca. */
+  var FOTO = {}; // 'perfil' | 'ev1'..'ev4' -> data: URL
+  function revocarFotos() { FOTO = {}; }
+  function llaveFoto(clave) { var p = clave.split(':'); return p[1] === 'perfil' ? 'perfil' : 'ev' + p[2]; }
+  function leerFoto(blob) {
+    return new Promise(function (ok, mal) {
+      var r = new FileReader();
+      r.onload = function () { ok(r.result); };
+      r.onerror = function () { mal(r.error || new Error('Foto ilegible')); };
+      r.readAsDataURL(blob);
+    });
   }
   function cargarFotos() {
     if (!F) return Promise.resolve();
-    return DB.fotosDe(F.uuid).then(function (fotos) {
-      fotos.forEach(function (f) {
-        var p = f.clave.split(':');
-        FOTO[p[1] === 'perfil' ? 'perfil' : 'ev' + p[2]] = URL.createObjectURL(f.blob);
+    var uuid = F.uuid;
+    return DB.fotosDe(uuid).then(function (fotos) {
+      return Promise.all(fotos.map(function (f) {
+        return leerFoto(f.blob).then(function (url) { return { f: f, url: url }; }, function () { return { f: f, url: null }; });
+      }));
+    }).then(function (leidas) {
+      if (!F || F.uuid !== uuid) return; // se abrió otra ficha mientras tanto
+      var nuevo = {}, rotas = [];
+      leidas.forEach(function (x) {
+        if (x.url) nuevo[llaveFoto(x.f.clave)] = x.url;
+        else if (x.f.subida) rotas.push(x.f.clave); // está en la nube: se puede volver a bajar
       });
+      FOTO = nuevo;
       var s = F.base ? SERV.find(function (x) { return x.uuid === F.base; }) : null;
-      if (s && navigator.onLine && API.configurada()) {
-        var falta = (s.fotoPerfilUrl && !FOTO.perfil) || (s.evidenciasUrls || []).some(function (u, i) { return u && !FOTO['ev' + (i + 1)]; });
-        if (falta) Sync.bajarFotosDe(s).then(function (n) { if (n && F && F.uuid === s.uuid) cargarFotos().then(refrescarFotos); }).catch(function () {});
-      }
+      if (!s || !navigator.onLine || !API.configurada()) return;
+      var falta = rotas.length || (s.fotoPerfilUrl && !FOTO.perfil) || (s.evidenciasUrls || []).some(function (u, i) { return u && !FOTO['ev' + (i + 1)]; });
+      if (!falta) return;
+      // Una foto local dañada se borra para que la bajada la traiga de nuevo
+      Promise.all(rotas.map(function (c) { return DB.borrarFoto(c); }))
+        .then(function () { return Sync.bajarFotosDe(s); })
+        .then(function (n) { if (n && F && F.uuid === uuid) cargarFotos().then(refrescarFotos); })
+        .catch(function () {});
     });
   }
   /* Si la sincronización trajo fotos de la ficha abierta (las tomó otro
@@ -784,10 +807,7 @@
     var uuid = F.uuid;
     return DB.fotosDe(uuid).then(function (fs) {
       if (!F || F.uuid !== uuid) return;
-      var nuevas = fs.some(function (f) {
-        var p = f.clave.split(':');
-        return !FOTO[p[1] === 'perfil' ? 'perfil' : 'ev' + p[2]];
-      });
+      var nuevas = fs.some(function (f) { return !FOTO[llaveFoto(f.clave)]; });
       if (nuevas) cargarFotos().then(refrescarFotos);
     });
   }
@@ -807,9 +827,8 @@
   function guardarFotoBlob(destino, blob) {
     if (!F) return Promise.resolve();
     var clave = F.uuid + (destino === 'perfil' ? ':perfil:1' : ':evidencia:' + destino.slice(2));
-    return DB.guardarFoto(clave, blob).then(function () {
-      if (FOTO[destino] && FOTO[destino].indexOf('blob:') === 0) URL.revokeObjectURL(FOTO[destino]);
-      FOTO[destino] = URL.createObjectURL(blob);
+    return DB.guardarFoto(clave, blob).then(function () { return leerFoto(blob); }).then(function (url) {
+      FOTO[destino] = url;
       if (F.base) F.sucio = true; else guardarBorrador();
       refrescarFotos();
     });
@@ -1052,6 +1071,13 @@
   }
 
   // ---------------------------------------------------------------- informe
+  /* Íconos del informe como SVG dentro del HTML (no fondos ni emojis): así se
+   * ven igual en pantalla, al imprimir (que quita los fondos) y en el PDF.
+   * Casillas en blanco y negro: llena con ✓ = cumple; vacía = no cumple. */
+  var SVG_CONO = '<svg class="inf-cono" viewBox="0 0 12 14" aria-hidden="true"><path d="M5.05 1.1h1.9l2.75 10.1H2.3z" fill="#1f2937"/><rect x="3.15" y="5" width="5.7" height="1.5" fill="#fff"/><rect x="2.5" y="8" width="7" height="1.5" fill="#fff"/><rect x=".9" y="11.2" width="10.2" height="1.9" rx=".6" fill="#1f2937"/></svg>';
+  var SVG_SI = '<svg class="inf-chk" viewBox="0 0 14 14" role="img" aria-label="Cumple"><rect x=".75" y=".75" width="12.5" height="12.5" rx="3" fill="#1f2937"/><path d="M3.9 7.3l2.1 2.1 4.2-4.5" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var SVG_NO = '<svg class="inf-chk" viewBox="0 0 14 14" role="img" aria-label="No cumple"><rect x=".75" y=".75" width="12.5" height="12.5" rx="3" fill="#fff" stroke="#1f2937" stroke-width="1.2"/></svg>';
+
   /* Port de updatePreviewData() + renderPreviewManeuverCard() de la app
    * clásica. Mismo texto, mismas clases de estado, mismos cálculos. */
   function pintarInforme() {
@@ -1111,8 +1137,8 @@
       var ul = document.getElementById(c[1]);
       ul.innerHTML = maniobras(c[0]).map(function (m) {
         var ok = F.practica[c[0]][m.campo] === 1;
-        return '<li class="flex justify-between items-center"><span>' + esc(corto(c[0], m.campo)) + '</span>' +
-          '<span class="' + (ok ? 'text-green-600 font-bold' : 'text-red-500 font-bold') + '">' + (ok ? '✅' : '❌') + '</span></li>';
+        return '<li class="flex justify-between items-center"><span>' + SVG_CONO + esc(corto(c[0], m.campo)) + '</span>' +
+          '<span>' + (ok ? SVG_SI : SVG_NO) + '</span></li>';
       }).join('');
       var aprueba = pctMod(r, c[0]) >= 0.8 - 1e-9;
       var st = document.getElementById(c[2]);
@@ -1209,7 +1235,12 @@
   }
   function paginasInforme() { return $$('#hojas .preview-page'); }
   /* Lo que se ve en las hojas: si cambia algo (datos o fotos), el PDF se rehace */
-  function claveInforme() { return paginasInforme().map(function (p) { return p.innerHTML; }).join('|'); }
+  function claveInforme() {
+    return paginasInforme().map(function (p) {
+      // las fotos (data:) pesan: basta con su largo y su final para notar un cambio
+      return p.innerHTML.replace(/data:[^"]+/g, function (d) { return d.length + d.slice(-24); });
+    }).join('|');
+  }
   function nombrePdf(f) { return ('Informe ' + f.folio + ' - ' + f.nombre).replace(/[\\/:*?"<>|]/g, '').trim() + '.pdf'; }
   function fabricarPdf() {
     var f = F, clave = claveInforme();
@@ -1245,6 +1276,7 @@
         }, Promise.resolve()).then(function () {
           var archivo = new File([pdf.output('blob')], nombrePdf(f), { type: 'application/pdf' });
           if (pdfListo && pdfListo.clave === clave) pdfListo.archivo = archivo;
+          estadoPdf();
           return archivo;
         });
       });
@@ -1259,31 +1291,95 @@
       if (F && F.base && rutaActual === 'informe') fabricarPdf().catch(function () {});
     }, 700);
   }
-  function compartirPdf(archivo, f) {
-    var texto = textoInforme(f);
-    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-      return navigator.share({ files: [archivo], title: archivo.name, text: texto }).catch(function (e) {
-        if (e.name === 'AbortError') return; // lo cerró la persona
-        // Se venció el permiso del toque: un toque más y sale
-        if (e.name === 'NotAllowedError') { toast('Informe listo', { texto: 'Enviar', fn: function () { compartirPdf(archivo, f); } }); return; }
-        throw e;
-      });
-    }
-    // PC o navegador que no comparte archivos: se descarga y se abre WhatsApp
+  /* ---------- Enviar: una hoja con todas las salidas del informe ----------
+   * WhatsApp y Correo abren la hoja de compartir del sistema con el PDF ya
+   * adjunto (cada uno con su mensaje); ahí se elige la app. En el PC, que no
+   * comparte archivos, el PDF se descarga y se abre WhatsApp Web o el correo. */
+  var LOGO_WA = 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z';
+  var ICONOS = {
+    wa: '<svg class="logo-wa" viewBox="0 0 24 24" aria-hidden="true"><path d="' + LOGO_WA + '"/></svg>',
+    correo: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7l8 6 8-6"/></svg>',
+    compartir: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
+    descargar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    imprimir: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg>'
+  };
+  function correoInforme(f) {
+    var r = resultado(f);
+    var fechaTxt = fechaLocal(aISO(f.fecha) || hoyISO()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    return {
+      asunto: 'Informe de evaluación práctica N° ' + f.folio + ' · ' + f.nombre,
+      cuerpo: 'Buenas tardes, equipo de ' + (f.empresa || 'CDA') + ':\n\n' +
+        'Adjuntamos el informe N° ' + f.folio + ' de evaluación del conocimiento y habilidad para maniobra de vehículos de ' +
+        f.nombre + ' (C.C. ' + f.cedula + '), realizado el ' + fechaTxt + (f.ciudad ? ' en ' + f.ciudad : '') + '.\n\n' +
+        'Resultado: ' + (r.resultado === 'APROBADO' ? 'Aprobado' : 'No aprobado') + '. Quedamos atentos a cualquier inquietud.\n\n' +
+        'Cordialmente,\nMario Alexander Córdoba Cruz\nInstructor de conducción técnico en seguridad vial'
+    };
+  }
+  function comparteArchivos() {
+    try { return !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.pdf', { type: 'application/pdf' })] })); }
+    catch (e) { return false; }
+  }
+  function descargarArchivo(archivo) {
     var a = document.createElement('a');
     a.href = URL.createObjectURL(archivo); a.download = archivo.name; a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-    window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
-    toast('PDF descargado: adjúntalo en el chat');
   }
-  function enviarWhatsApp() {
-    var btn = $('#btn-whatsapp'), f = F, clave = claveInforme();
-    if (pdfListo && pdfListo.clave === clave && pdfListo.archivo) { compartirPdf(pdfListo.archivo, f); return; }
-    btn.classList.add('cargando'); btn.disabled = true;
+  function abrirEnviar() {
+    if (!F || !F.base) return;
+    var f = F, archivos = comparteArchivos();
+    fabricarPdf().then(estadoPdf, estadoPdf); // si aún no estaba listo
+    var ops = [
+      { id: 'wa', t: 'WhatsApp', d: 'El PDF con un mensaje corto' },
+      { id: 'correo', t: 'Correo', d: 'El PDF con un mensaje formal para ' + (f.empresa || 'el CDA') },
+      archivos ? { id: 'compartir', t: 'Otras apps', d: 'Drive, Telegram, guardar en archivos…' } : null,
+      { id: 'descargar', t: 'Descargar PDF', d: archivos ? 'Queda guardado en el teléfono' : 'Queda en la carpeta Descargas' },
+      { id: 'imprimir', t: 'Imprimir', d: 'O “Guardar como PDF” desde la impresora' }
+    ].filter(Boolean);
+    abrirHoja('<h2>Enviar informe N° ' + esc(f.folio) + '</h2><p class="sub">' + esc(f.nombre) + ' · <span id="env-estado"></span></p>' +
+      '<div class="opciones-foto">' + ops.map(function (o) {
+        return '<button type="button" class="opcion-foto" data-destino="' + o.id + '">' + ICONOS[o.id] +
+          '<span><b>' + o.t + '</b><small>' + esc(o.d) + '</small></span></button>';
+      }).join('') + '</div>');
+    estadoPdf();
+    $$('[data-destino]', $('#hoja-cuerpo')).forEach(function (b) {
+      b.onclick = function () { elegirDestino(b.dataset.destino, f, b); };
+    });
+  }
+  function estadoPdf() {
+    var el = $('#env-estado'); if (!el) return;
+    var listo = pdfListo && pdfListo.archivo && pdfListo.clave === claveInforme();
+    el.textContent = listo ? 'PDF listo' : 'preparando el PDF…';
+  }
+  function elegirDestino(op, f, boton) {
+    if (op === 'imprimir') { cerrarCapa(imprimir); return; }
+    var listo = pdfListo && pdfListo.archivo && pdfListo.clave === claveInforme() ? pdfListo.archivo : null;
+    if (listo) { entregar(op, listo, f); return; }
+    boton.classList.add('cargando'); boton.disabled = true;
     fabricarPdf()
-      .then(function (archivo) { return compartirPdf(archivo, f); })
+      .then(function (archivo) { return entregar(op, archivo, f); })
       .catch(function (e) { toast('No se pudo preparar el PDF: ' + e.message); })
-      .then(function () { btn.classList.remove('cargando'); btn.disabled = false; });
+      .then(function () { boton.classList.remove('cargando'); boton.disabled = false; });
+  }
+  function entregar(op, archivo, f) {
+    if (op === 'descargar') { descargarArchivo(archivo); cerrarCapa(); toast('PDF descargado'); return; }
+    var corto = textoInforme(f), correo = correoInforme(f);
+    if (comparteArchivos()) {
+      var datos = op === 'wa' ? { files: [archivo], text: corto }
+        : op === 'correo' ? { files: [archivo], title: correo.asunto, text: correo.cuerpo }
+        : { files: [archivo], title: archivo.name };
+      return navigator.share(datos).then(function () { cerrarCapa(); }, function (e) {
+        if (e.name === 'AbortError') return; // lo cerró la persona: la hoja sigue abierta
+        // Se venció el permiso del toque (el PDF tardó): un toque más y sale
+        if (e.name === 'NotAllowedError') { toast('PDF listo', { texto: 'Enviar', fn: function () { entregar(op, archivo, f); } }); return; }
+        toast('No se pudo compartir: ' + e.message);
+      });
+    }
+    // PC: se descarga el PDF y se abre el destino para adjuntarlo
+    descargarArchivo(archivo);
+    if (op === 'wa') window.open('https://wa.me/?text=' + encodeURIComponent(corto), '_blank');
+    else if (op === 'correo') location.href = 'mailto:?subject=' + encodeURIComponent(correo.asunto) + '&body=' + encodeURIComponent(correo.cuerpo);
+    cerrarCapa();
+    toast('PDF descargado: adjúntalo ' + (op === 'correo' ? 'en el correo' : 'en el chat'));
   }
 
   // --------------------------------------------------- enviar tanda (correo)
@@ -1310,7 +1406,7 @@
     abrirHoja(
       '<h2>Enviar · ' + esc(empresa) + '</h2><p class="sub">' + lista.length + ' informe' + (lista.length === 1 ? '' : 's') + ' de hoy · N° ' + esc(nums.join(', ')) + '</p>' +
       '<div class="vista-correo"><b>' + esc(asunto) + '</b>\n\n' + esc(cuerpo) + '</div>' +
-      '<p class="sub">Los PDF se adjuntan desde cada informe (botón PDF → Guardar como PDF).</p>' +
+      '<p class="sub">Los PDF se adjuntan desde cada informe: Enviar → Descargar PDF.</p>' +
       '<div class="acciones"><button type="button" class="btn-tinta" id="env-correo">Abrir en el correo</button>' +
       '<button type="button" class="btn-borde" id="env-wa">WhatsApp</button></div>'
     );
@@ -1675,8 +1771,7 @@
   $('#f-conclusiones').addEventListener('input', function () { F.conclusiones = this.value; marcarPlantillas(); guardarBorrador(); });
   $('#emitir').addEventListener('click', emitir);
   $('#informe-editar').addEventListener('click', function () { ir('persona'); });
-  $('#btn-pdf').addEventListener('click', imprimir);
-  $('#btn-whatsapp').addEventListener('click', enviarWhatsApp);
+  $('#btn-enviar').addEventListener('click', abrirEnviar);
   $('#btn-otra').addEventListener('click', function () {
     nuevaEvaluacion({ empresa: F.empresa, ciudad: F.ciudad, fecha: hoyISO(), conVigencia: F.conVigencia });
   });
