@@ -1775,7 +1775,7 @@
     p.removeAttribute('aria-hidden');
     p.setAttribute('aria-label', 'Pasos');
     p.innerHTML = PASOS.map(function (x, i) {
-      return '<button type="button" class="paso' + (i <= idx ? ' on' : '') + (i === idx ? ' actual" aria-current="step"' : '"') +
+      return '<button type="button" class="etapa' + (i <= idx ? ' on' : '') + (i === idx ? ' actual" aria-current="step"' : '"') +
         ' data-ir="' + x[0] + '"><span>' + x[1] + '</span></button>';
     }).join('');
   });
