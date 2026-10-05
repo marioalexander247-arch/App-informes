@@ -50,7 +50,8 @@
     <button class="btn sec" id="revisarFotos">Revisar fotos</button>
   </div>
   <div class="caja scroll" id="fotosCaja" style="display:none">
-    <p class="sub">P = perfil, E1–E4 = evidencias. <span class="ok">✔</span> se ve aquí · <span class="mal">✘</span> está en la nube pero no aquí · — no tiene.</p>
+    <p class="sub">P = perfil, E1–E4 = evidencias. <span class="ok">✔</span> se ve aquí · <span class="mal">✘</span> está en la nube pero no aquí · — no tiene.
+      Las "solo aquí" se suben solas en la próxima sincronización de este dispositivo.</p>
     <table id="fotosTabla"><thead><tr><th>N°</th><th>Persona</th><th>Fotos</th><th></th></tr></thead><tbody></tbody></table>
   </div>
 
@@ -245,6 +246,7 @@
             var clave = rem.uuid + ':' + x[1] + ':' + x[2], f = fotoPor[clave], enNube = !!urlDe(rem, x);
             return legible(f && f.blob).then(function (ok) {
               return { r: x[0], clave: clave, enNube: enNube, enFicha: !!urlDe(loc, x), hay: !!f, ok: ok,
+                       subida: !!(f && f.subida), conUrl: !!(f && f.url),
                        kb: f && f.blob ? Math.round(f.blob.size / 1024) : 0 };
             });
           })).then(function (estados) { return { rem: rem, loc: loc, estados: estados }; });
@@ -261,7 +263,8 @@
             '<td class="dato">' + fi.estados.map(function (e) {
               if (!e.enNube && !e.hay) return e.r + ' —';
               var txt = e.r + ' ' + (e.ok ? '✔' : '✘');
-              var nota = !e.enNube ? ' (solo aquí)' : !e.hay ? ' (no bajó)' : !e.ok ? ' (dañada)' : '';
+              var nota = !e.enNube ? (e.subida && e.conUrl ? ' (solo aquí: en Drive, falta avisar a la nube)' : ' (solo aquí: sin subir)')
+                : !e.hay ? ' (no bajó)' : !e.ok ? ' (dañada)' : '';
               if (!e.enFicha && e.enNube) nota += ' (ficha sin URL)';
               return '<span class="' + (e.ok ? 'ok' : 'mal') + '">' + txt + '</span><small>' + nota + '</small>';
             }).join(' · ') + '<div class="dato" id="fotoMsg' + i + '"></div></td>' +

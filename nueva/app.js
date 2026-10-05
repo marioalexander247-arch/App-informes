@@ -371,7 +371,7 @@
     if (ruta === 'inicio' || matchMedia('(min-width: 1100px)').matches) pintarInicio();
     if (ruta === 'persona') pintarPersona();
     if (ruta === 'evaluar') pintarEvaluar();
-    if (ruta === 'cierre') pintarCierre();
+    if (ruta === 'cierre' || (ruta === 'informe' && matchMedia('(min-width: 1100px)').matches)) pintarCierre();
     if (ruta === 'informe' || document.body.classList.contains('con-ficha')) pintarInforme();
   }
 
@@ -1259,6 +1259,11 @@
               scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
               onclone: function (doc) { // en la copia, la hoja a tamaño real y sin marco
                 var c = doc.getElementById(pag.id);
+                // Si la vista del informe está oculta (tanda armada desde el inicio), en la copia se muestra
+                for (var el = c.parentElement; el && el !== doc.body; el = el.parentElement) {
+                  el.removeAttribute('hidden');
+                  if (doc.defaultView.getComputedStyle(el).display === 'none') el.style.setProperty('display', 'block', 'important');
+                }
                 c.style.transform = 'none'; c.style.boxShadow = 'none'; c.style.border = '0';
                 c.parentElement.style.overflow = 'visible'; c.parentElement.style.width = 'auto'; c.parentElement.style.height = 'auto';
                 // html2canvas pinta mal las sombras con esquinas redondas (franjas grises): fuera
@@ -1382,36 +1387,133 @@
     toast('PDF descargado: adjúntalo ' + (op === 'correo' ? 'en el correo' : 'en el chat'));
   }
 
-  // --------------------------------------------------- enviar tanda (correo)
+  // ------------------------------------------- enviar tanda (un PDF por persona)
+  /* Los informes de hoy de una empresa, cada uno en su PDF, en un solo envío.
+   * Los PDF se arman uno tras otro al abrir la hoja (la hoja del informe se
+   * dibuja fuera de pantalla con los datos de cada persona) y el toque solo
+   * los entrega, igual que el botón Enviar de un informe. */
+  var TANDA = null; // { empresa, lista, archivos: {uuid: File}, cancelada }
+  function pdfDeServicio(s) {
+    var guardaF = F, guardaFoto = FOTO, guardaOrig = ORIGINAL;
+    function restaurar() {
+      F = guardaF; FOTO = guardaFoto; ORIGINAL = guardaOrig;
+      document.body.classList.remove('armando-pdf');
+      if (F) pintarInforme();
+    }
+    var bajar = navigator.onLine && API.configurada() ? Sync.bajarFotosDe(s).catch(function () {}) : Promise.resolve();
+    return bajar.then(function () {
+      F = fichaDeServicio(s); FOTO = {};
+      document.body.classList.add('armando-pdf');
+      return cargarFotos();
+    }).then(function () { pintarInforme(); return fabricarPdf(); })
+      .then(function (archivo) { restaurar(); return archivo; }, function (e) { restaurar(); throw e; });
+  }
+  function textosTanda(empresa, lista) {
+    var hoy = hoyISO();
+    var ap = lista.filter(function (s) { return s.resultado === 'APROBADO'; }).length;
+    var ciudad = (lista[0] && lista[0].ciudad) || '';
+    var fechaTxt = fechaLocal(hoy).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    var uno = lista.length === 1;
+    return {
+      asunto: 'Informes de evaluación práctica · ' + empresa + ' · ' + fechaTxt,
+      cuerpo: 'Buenas tardes, equipo de ' + empresa + ':\n\n' +
+        'Adjuntamos ' + (uno ? 'el informe' : 'los informes') + ' de evaluación del conocimiento y habilidad para maniobra de vehículos realizad' + (uno ? 'o' : 'os') +
+        ' el ' + fechaTxt + (ciudad ? ' en ' + ciudad : '') + ':\n\n' +
+        lista.map(function (s) {
+          return 'N° ' + folioDe(s) + ' · ' + s.nombre + ' · C.C. ' + s.cedula + ' · ' + (s.resultado === 'APROBADO' ? 'Aprobado' : 'No aprobado');
+        }).join('\n') +
+        '\n\nResultado: ' + ap + ' de ' + lista.length + (uno ? ' aprobado' : ' aprobados') + '. Quedamos atentos a cualquier inquietud.\n\n' +
+        'Cordialmente,\nMario Alexander Córdoba Cruz\nInstructor de conducción técnico en seguridad vial',
+      corto: empresa + ' · ' + fechaTxt + '\n' + lista.map(function (s) {
+        return 'N° ' + folioDe(s) + ' ' + s.nombre + ' — ' + (s.resultado === 'APROBADO' ? 'Aprobado' : 'No aprobado');
+      }).join('\n')
+    };
+  }
   function abrirEnvio(empresa) {
     var hoy = hoyISO();
     var lista = SERV.filter(function (s) { return (s.empresa || 'Sin empresa') === empresa && aISO(s.fecha) === hoy; })
       .sort(function (a, b) { return (folioDe(a) || 0) - (folioDe(b) || 0); });
-    var ap = lista.filter(function (s) { return s.resultado === 'APROBADO'; }).length;
-    var ciudad = (lista[0] && lista[0].ciudad) || '';
-    var fechaTxt = fechaLocal(hoy).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-    var nums = lista.map(function (s) { return folioDe(s); });
-    var asunto = 'Informes de evaluación práctica · ' + empresa + ' · ' + fechaTxt;
-    var cuerpo = 'Buenas tardes, equipo de ' + empresa + ':\n\n' +
-      'Adjuntamos ' + (lista.length === 1 ? 'el informe' : 'los informes') + ' de evaluación del conocimiento y habilidad para maniobra de vehículos realizad' + (lista.length === 1 ? 'o' : 'os') +
-      ' el ' + fechaTxt + (ciudad ? ' en ' + ciudad : '') + ':\n\n' +
-      lista.map(function (s) {
-        return 'N° ' + folioDe(s) + ' · ' + s.nombre + ' · C.C. ' + s.cedula + ' · ' + (s.resultado === 'APROBADO' ? 'Aprobado' : 'No aprobado');
-      }).join('\n') +
-      '\n\nResultado: ' + ap + ' de ' + lista.length + (lista.length === 1 ? ' aprobado' : ' aprobados') + '. Quedamos atentos a cualquier inquietud.\n\n' +
-      'Cordialmente,\nMario Alexander Córdoba Cruz\nInstructor de conducción técnico en seguridad vial';
-    var wa = empresa + ' · ' + fechaTxt + '\n' + lista.map(function (s) {
-      return 'N° ' + folioDe(s) + ' ' + s.nombre + ' — ' + (s.resultado === 'APROBADO' ? 'Aprobado' : 'No aprobado');
-    }).join('\n');
-    abrirHoja(
-      '<h2>Enviar · ' + esc(empresa) + '</h2><p class="sub">' + lista.length + ' informe' + (lista.length === 1 ? '' : 's') + ' de hoy · N° ' + esc(nums.join(', ')) + '</p>' +
-      '<div class="vista-correo"><b>' + esc(asunto) + '</b>\n\n' + esc(cuerpo) + '</div>' +
-      '<p class="sub">Los PDF se adjuntan desde cada informe: Enviar → Descargar PDF.</p>' +
-      '<div class="acciones"><button type="button" class="btn-tinta" id="env-correo">Abrir en el correo</button>' +
-      '<button type="button" class="btn-borde" id="env-wa">WhatsApp</button></div>'
-    );
-    $('#env-correo').onclick = function () { location.href = 'mailto:?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo); };
-    $('#env-wa').onclick = function () { compartirTexto(wa); };
+    if (!lista.length) { toast('No hay informes de hoy para ' + empresa); return; }
+    var archivos = comparteArchivos();
+    var ops = [
+      { id: 'correo', t: 'Correo', d: 'Los PDF con el mensaje formal y la lista' },
+      { id: 'wa', t: 'WhatsApp', d: 'Los PDF con un resumen corto' },
+      archivos ? { id: 'compartir', t: 'Otras apps', d: 'Drive, Telegram, guardar en archivos…' } : null,
+      { id: 'descargar', t: 'Descargar todos', d: archivos ? 'Quedan guardados en el teléfono' : 'Quedan en la carpeta Descargas' }
+    ].filter(Boolean);
+    TANDA = { empresa: empresa, lista: lista, archivos: {}, cancelada: false };
+    var tanda = TANDA;
+    abrirHoja('<h2>Enviar · ' + esc(empresa) + '</h2><p class="sub">Informes de hoy, un PDF por persona · <span id="tanda-estado"></span></p>' +
+      '<div class="tanda-lista">' + lista.map(function (s) {
+        return '<label class="tanda-item"><input type="checkbox" checked data-tanda="' + esc(s.uuid) + '">' +
+          '<span class="folio">' + (folioDe(s) || '—') + '</span><span class="nom">' + esc(s.nombre) + '</span>' +
+          '<small class="' + (s.resultado === 'APROBADO' ? 'ok-t' : 'no-t') + '">' + (s.resultado === 'APROBADO' ? 'Aprobado' : 'No aprobado') + '</small></label>';
+      }).join('') + '</div>' +
+      '<div class="opciones-foto">' + ops.map(function (o) {
+        return '<button type="button" class="opcion-foto" data-destino-tanda="' + o.id + '">' + ICONOS[o.id === 'descargar' ? 'descargar' : o.id] +
+          '<span><b>' + o.t + '</b><small>' + esc(o.d) + '</small></span></button>';
+      }).join('') + '</div>' +
+      '<details class="mas"><summary>Ver el mensaje del correo</summary><div class="vista-correo" id="tanda-correo"></div></details>',
+      function () { tanda.cancelada = true; if (TANDA === tanda) TANDA = null; });
+    function elegidos() {
+      return lista.filter(function (s) { var c = $('[data-tanda="' + s.uuid + '"]'); return c && c.checked; });
+    }
+    function pintarEstado() {
+      if (tanda.cancelada) return;
+      var sel = elegidos(), listos = sel.filter(function (s) { return tanda.archivos[s.uuid]; }).length;
+      $('#tanda-estado').textContent = listos === sel.length ? sel.length + ' PDF listos' : 'preparando ' + listos + ' de ' + sel.length + '…';
+      var t = textosTanda(empresa, sel.length ? sel : lista);
+      $('#tanda-correo').textContent = t.asunto + '\n\n' + t.cuerpo;
+    }
+    $$('[data-tanda]', $('#hoja-cuerpo')).forEach(function (c) { c.onchange = pintarEstado; });
+    pintarEstado();
+    // Armar los PDF uno tras otro (en paralelo se pisarían: comparten la hoja del informe)
+    tanda.listo = lista.reduce(function (p, s) {
+      return p.then(function () {
+        if (tanda.cancelada) return;
+        return pdfDeServicio(s).then(function (archivo) { tanda.archivos[s.uuid] = archivo; pintarEstado(); },
+          function (e) { toast('No se pudo preparar el N° ' + folioDe(s) + ': ' + e.message); });
+      });
+    }, Promise.resolve());
+    $$('[data-destino-tanda]', $('#hoja-cuerpo')).forEach(function (b) {
+      b.onclick = function () {
+        var sel = elegidos();
+        if (!sel.length) { toast('Marca al menos un informe'); return; }
+        var faltan = sel.some(function (s) { return !tanda.archivos[s.uuid]; });
+        if (!faltan) { entregarTanda(b.dataset.destinoTanda, sel, tanda); return; }
+        b.classList.add('cargando'); b.disabled = true;
+        tanda.listo.then(function () {
+          b.classList.remove('cargando'); b.disabled = false;
+          if (!tanda.cancelada) entregarTanda(b.dataset.destinoTanda, sel, tanda);
+        });
+      };
+    });
+  }
+  function entregarTanda(op, sel, tanda) {
+    var files = sel.map(function (s) { return tanda.archivos[s.uuid]; }).filter(Boolean);
+    if (!files.length) { toast('No hay PDF listos'); return; }
+    var t = textosTanda(tanda.empresa, sel);
+    if (op === 'descargar') {
+      files.forEach(function (f, i) { setTimeout(function () { descargarArchivo(f); }, i * 400); });
+      cerrarCapa(); toast(files.length + ' PDF descargados'); return;
+    }
+    if (comparteArchivos() && navigator.canShare({ files: files })) {
+      var datos = op === 'wa' ? { files: files, text: t.corto }
+        : op === 'correo' ? { files: files, title: t.asunto, text: t.cuerpo }
+        : { files: files, title: t.asunto };
+      navigator.share(datos).then(function () { cerrarCapa(); }, function (e) {
+        if (e.name === 'AbortError') return;
+        if (e.name === 'NotAllowedError') { toast(files.length + ' PDF listos', { texto: 'Enviar', fn: function () { entregarTanda(op, sel, tanda); } }); return; }
+        toast('No se pudo compartir: ' + e.message);
+      });
+      return;
+    }
+    // PC: se descargan todos y se abre el destino para adjuntarlos
+    files.forEach(function (f, i) { setTimeout(function () { descargarArchivo(f); }, i * 400); });
+    if (op === 'wa') window.open('https://wa.me/?text=' + encodeURIComponent(t.corto), '_blank');
+    else if (op === 'correo') location.href = 'mailto:?subject=' + encodeURIComponent(t.asunto) + '&body=' + encodeURIComponent(t.cuerpo);
+    cerrarCapa();
+    toast(files.length + ' PDF descargados: adjúntalos ' + (op === 'correo' ? 'al correo' : 'en el chat'));
   }
 
   // -------------------------------------------------------- búsqueda
@@ -1663,11 +1765,26 @@
     abrirFicha(f, 'persona');
     guardarBorrador();
   }
+  /* Pasos: rayitas en el celular; pestañas con nombre en el PC, donde se
+   * salta de una a otra con un clic (Emitir valida todo igual). */
+  var ESCRITORIO = matchMedia('(min-width: 1100px)');
+  var PASOS = [['persona', 'Datos'], ['evaluar', 'Evaluación'], ['cierre', 'Cierre']];
+  $$('.pasos').forEach(function (p) {
+    var actual = p.closest('.vista').dataset.vista;
+    var idx = PASOS.map(function (x) { return x[0]; }).indexOf(actual);
+    p.removeAttribute('aria-hidden');
+    p.setAttribute('aria-label', 'Pasos');
+    p.innerHTML = PASOS.map(function (x, i) {
+      return '<button type="button" class="paso' + (i <= idx ? ' on' : '') + (i === idx ? ' actual" aria-current="step"' : '"') +
+        ' data-ir="' + x[0] + '"><span>' + x[1] + '</span></button>';
+    }).join('');
+  });
   function abrirServicio(uuid) {
     var s = SERV.find(function (x) { return x.uuid === uuid; });
     if (!s) return;
     if (F) salirDeFicha();
-    abrirFicha(fichaDeServicio(s), 'informe');
+    // En el PC el informe ya se ve a la derecha: en el medio van los Datos, listos para editar
+    abrirFicha(fichaDeServicio(s), ESCRITORIO.matches ? 'persona' : 'informe');
   }
 
   // ------------------------------------------------------------- eventos

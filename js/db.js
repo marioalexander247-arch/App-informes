@@ -83,11 +83,22 @@
     guardarFotoRemota: function (clave, blob, url) {
       return tx('fotos', 'readwrite', function (st) { st.put({ clave: clave, blob: blob, subida: true, url: url }); });
     },
-    /* uuids de servicios con al menos una foto que nunca llegó a Drive. */
+    /* uuids de servicios con al menos una foto que nunca llegó a Drive, o que
+     * llegó pero su URL no quedó en la ficha (envío cortado a mitad de camino:
+     * así se quedaron sin evidencias en la nube informes como el 31). */
     uuidsConFotosSinSubir: function () {
-      return tx('fotos', 'readonly', function (st) { return pedir(st.getAll()); }).then(function (todas) {
-        var vistos = {};
-        (todas || []).forEach(function (f) { if (!f.subida) vistos[f.clave.split(':')[0]] = true; });
+      return Promise.all([
+        tx('fotos', 'readonly', function (st) { return pedir(st.getAll()); }),
+        DB.listarServicios()
+      ]).then(function (r) {
+        var porUuid = {}, vistos = {};
+        (r[1] || []).forEach(function (s) { porUuid[s.uuid] = s; });
+        (r[0] || []).forEach(function (f) {
+          var p = f.clave.split(':'), s = porUuid[p[0]];
+          if (!f.subida || !f.url) { vistos[p[0]] = true; return; }
+          var enFicha = s && (p[1] === 'perfil' ? s.fotoPerfilUrl : (s.evidenciasUrls || [])[(parseInt(p[2], 10) || 1) - 1]);
+          if (s && !enFicha) vistos[p[0]] = true;
+        });
         return Object.keys(vistos);
       });
     },

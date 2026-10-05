@@ -71,9 +71,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .estado-nube.girando .punto { animation: latir 1s ease-in-out infinite; }
 @keyframes latir { 50% { transform: scale(1.8); opacity: .5; } }
 
+/* Pasos: en el celular son rayitas de progreso (no se tocan: se avanza con
+ * los botones de cada paso); en el PC son pestañas (ver media query) */
 .pasos { display: flex; gap: 6px; margin: 2px 0 18px; }
-.pasos span { flex: 1; height: 3px; border-radius: 2px; background: var(--line); transition: background .4s; }
-.pasos span.on { background: var(--ink); }
+.paso { flex: 1; height: 3px; border-radius: 2px; background: var(--line); transition: background .4s; pointer-events: none; }
+.paso.on { background: var(--ink); }
+.paso span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- inicio ---------- */
 .siguiente { display: flex; flex-direction: column; gap: 2px; padding: 26px 0 24px; border-bottom: 1px solid var(--line); }
@@ -340,6 +343,15 @@ body.con-fab .fab { display: block; }
 
 /* Foto: elegir cámara o galería */
 .opciones-foto { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+/* Tanda: lista de informes de hoy con casillas */
+.tanda-lista { display: flex; flex-direction: column; margin-top: 10px; border-top: 1px solid var(--line); }
+.tanda-item { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.tanda-item input { width: 22px; height: 22px; accent-color: var(--ink); flex-shrink: 0; margin: 0; }
+.tanda-item .folio { width: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tanda-item .nom { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tanda-item small { font-size: 12px; font-weight: 600; }
+/* Armar los PDF de una tanda: la hoja del informe se dibuja fuera de pantalla */
+body.armando-pdf #v-informe:not(.activa) { display: block !important; position: fixed; left: -12000px; top: 0; width: 860px; }
 .opcion-foto { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--sf); text-align: left; transition: transform .15s var(--resorte); }
 .opcion-foto:active { transform: scale(.98); }
 .opcion-foto svg { width: 26px; height: 26px; }
@@ -478,6 +490,22 @@ body.encogido .app { transform: scale(.94); border-radius: 22px; overflow: hidde
   .pie-informe { position: sticky; }
   .fab { right: auto; left: 266px; bottom: 100px; }
   .siguiente .num { font-size: 64px; }
+  /* Pestañas Datos · Evaluación · Cierre */
+  .pasos { gap: 24px; margin: 4px 0 22px; border-bottom: 1px solid var(--line); }
+  .paso {
+    flex: 0 0 auto; height: auto; border-radius: 0; background: none; pointer-events: auto;
+    padding: 10px 0 11px; margin-bottom: -1px; border-bottom: 2px solid transparent;
+    color: var(--mut); font-size: 15px; font-weight: 600; transition: color .2s, border-color .2s;
+  }
+  .paso.on { background: none; }
+  .paso span { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .paso:hover { color: var(--ink); }
+  .paso.actual { color: var(--ink); border-bottom-color: var(--ink); }
+  body.armando-pdf.con-ficha #v-informe { position: static; left: auto; width: auto; }
+  /* El menú + siempre a mano en la columna de la lista */
+  .fab { display: block; }
+  /* "Editar" sobra: la ficha ya está abierta al lado */
+  #informe-editar { display: none; }
 }
 
 @media (min-width: 1100px) { body.encogido .app { transform: none; border-radius: 0; } }

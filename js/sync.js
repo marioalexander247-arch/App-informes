@@ -13,10 +13,27 @@
     });
   }
 
-  /* Sube las fotos pendientes de un servicio y escribe sus URLs en la ficha. */
+  function urlEnFicha(s, partes) {
+    return partes[1] === 'perfil' ? s.fotoPerfilUrl : (s.evidenciasUrls || [])[(parseInt(partes[2], 10) || 1) - 1];
+  }
+
+  /* Sube las fotos pendientes de un servicio y escribe sus URLs en la ficha.
+   *
+   * Trampa (fotos que nunca llegaban al otro dispositivo): cada foto se marca
+   * "subida" apenas llega a Drive, pero su URL solo viaja a la nube cuando se
+   * guarda la ficha, al final. Si la señal se caía a mitad de camino, las ya
+   * subidas quedaban marcadas y su URL se perdía: nunca se volvían a mandar.
+   * Ahora la URL de cada foto subida se recupera de la propia foto (se guarda
+   * con ella) antes de guardar la ficha, y una foto "subida" sin URL se sube
+   * de nuevo. */
   function subirFotosDe(servicio) {
     return DB.fotosDe(servicio.uuid).then(function (fotos) {
-      var pendientes = fotos.filter(function (f) { return !f.subida; });
+      var recuperadas = 0;
+      fotos.forEach(function (f) {
+        var partes = f.clave.split(':');
+        if (f.subida && f.url && !urlEnFicha(servicio, partes)) { ponerUrl(servicio, partes, f.url); recuperadas++; }
+      });
+      var pendientes = fotos.filter(function (f) { return !f.subida || !f.url; });
       var cadena = Promise.resolve();
       pendientes.forEach(function (f) {
         cadena = cadena.then(function () {
@@ -24,18 +41,7 @@
           return blobABase64(f.blob).then(function (b64) {
             return API.upload({ uuid: partes[0], tipo: partes[1], n: partes[2], mime: f.blob.type || 'image/jpeg', base64: b64 });
           }).then(function (resp) {
-            if (partes[1] === 'perfil') servicio.fotoPerfilUrl = resp.url;
-            else {
-              /* Antes se hacía push: el orden del array dependía del orden en que
-               * se subieran las fotos, y al reemplazar una evidencia se añadía otra
-               * al final en vez de sustituirla. Como el otro dispositivo asigna las
-               * fotos por POSICIÓN (evidenciasUrls[0] -> ev1), salían cambiadas de
-               * sitio o se perdían al pasar de 4. Ahora cada una va a su hueco. */
-              var n = parseInt(partes[2], 10) || 1;
-              servicio.evidenciasUrls = servicio.evidenciasUrls || [];
-              while (servicio.evidenciasUrls.length < n) servicio.evidenciasUrls.push('');
-              servicio.evidenciasUrls[n - 1] = resp.url;
-            }
+            ponerUrl(servicio, partes, resp.url);
             return DB.marcarFotoSubida(f.clave, resp.url);
           });
         });
@@ -44,10 +50,19 @@
         /* Fotos nuevas = cambio del registro. Sin mover updatedAt, los otros
          * dispositivos (que solo piden "lo cambiado desde la última vez") nunca
          * se enteraban de las URLs nuevas y el informe salía sin esas fotos. */
-        if (pendientes.length) servicio.updatedAt = new Date().toISOString();
+        if (pendientes.length || recuperadas) servicio.updatedAt = new Date().toISOString();
         return servicio;
       });
     });
+  }
+  function ponerUrl(servicio, partes, url) {
+    if (partes[1] === 'perfil') { servicio.fotoPerfilUrl = url; return; }
+    /* Cada evidencia va a SU hueco (evidenciasUrls[0] -> ev1): con push se
+     * cambiaban de sitio o se perdían al reemplazar una. */
+    var n = parseInt(partes[2], 10) || 1;
+    servicio.evidenciasUrls = servicio.evidenciasUrls || [];
+    while (servicio.evidenciasUrls.length < n) servicio.evidenciasUrls.push('');
+    servicio.evidenciasUrls[n - 1] = url;
   }
 
   /* Servicios a empujar: los marcados 'pendiente' MÁS los que tengan fotos sin
