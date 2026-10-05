@@ -45,6 +45,15 @@
     </tr></thead><tbody></tbody></table>
   </div>
 
+  <div class="caja">
+    <div id="fotosResumen"><b>Fotos.</b> Compara, informe por informe, las fotos de la nube con las que tiene este dispositivo.</div>
+    <button class="btn sec" id="revisarFotos">Revisar fotos</button>
+  </div>
+  <div class="caja scroll" id="fotosCaja" style="display:none">
+    <p class="sub">P = perfil, E1–E4 = evidencias. <span class="ok">✔</span> se ve aquí · <span class="mal">✘</span> está en la nube pero no aquí · — no tiene.</p>
+    <table id="fotosTabla"><thead><tr><th>N°</th><th>Persona</th><th>Fotos</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+
 <script>
 (function () {
   var VEHICULOS = ['moto', 'motocarro', 'cuatrimoto', 'carro'];
@@ -166,6 +175,142 @@
         boton.disabled = false; boton.textContent = 'Revisar ahora';
       });
   };
+
+  /* ---------- Fotos ----------
+   * Por cada informe con fotos: qué URLs tiene la nube, cuáles conoce la ficha
+   * de este dispositivo y si la foto guardada aquí se puede leer de verdad. */
+  var RANURAS = [['P', 'perfil', 1], ['E1', 'evidencia', 1], ['E2', 'evidencia', 2], ['E3', 'evidencia', 3], ['E4', 'evidencia', 4]];
+  function urlDe(s, r) { return r[1] === 'perfil' ? (s && s.fotoPerfilUrl) || '' : ((s && s.evidenciasUrls) || [])[r[2] - 1] || ''; }
+  function idDeUrl(u) {
+    var m = /[?&]id=([^&]+)/.exec(u || '') || /\/d\/([^/=?&]+)/.exec(u || '');
+    return m ? m[1] : null;
+  }
+  function folioDe(s) {
+    var m = /^excel-0*(\d+)$/.exec(String(s.uuid || ''));
+    if (m) return parseInt(m[1], 10);
+    return s.evaluacion && s.evaluacion.folio ? Number(s.evaluacion.folio) : null;
+  }
+  function leerFotos(db) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction('fotos', 'readonly').objectStore('fotos').getAll();
+      t.onsuccess = function () { res(t.result || []); };
+      t.onerror = function () { rej(t.error); };
+    });
+  }
+  function legible(blob) {
+    return new Promise(function (res) {
+      if (!blob) { res(false); return; }
+      var r = new FileReader();
+      r.onload = function () { res(true); };
+      r.onerror = function () { res(false); };
+      r.readAsArrayBuffer(blob.slice(0, 64));
+    });
+  }
+  function ponerEnStore(db, store, valor, borrarClave) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction(store, 'readwrite'), st = t.objectStore(store);
+      if (borrarClave) st.delete(borrarClave); else st.put(valor);
+      t.oncomplete = res; t.onerror = function () { rej(t.error); };
+    });
+  }
+  function base64ABlob(b64, mime) {
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime || 'image/jpeg' });
+  }
+  function api(accion, extra) {
+    var url = localStorage.getItem('apiUrl'), token = localStorage.getItem('apiToken');
+    var q = new URLSearchParams(Object.assign({ action: accion, token: token }, extra || {}));
+    return fetch(url + '?' + q.toString()).then(function (r) { return r.json(); })
+      .then(function (j) { if (j && j.error) throw new Error(j.error); return j; });
+  }
+
+  var FOTOS = []; // filas revisadas: { rem, loc, estados }
+  document.getElementById('revisarFotos').onclick = function () {
+    var boton = this, res = document.getElementById('fotosResumen');
+    if (!localStorage.getItem('apiUrl')) { res.innerHTML = '❌ Sin conexión a la nube configurada.'; return; }
+    boton.disabled = true; boton.textContent = 'Revisando fotos…';
+    var db;
+    abrirDB().then(function (d) { db = d; return Promise.all([leerServicios(db), leerFotos(db), api('pull', { desde: '' })]); })
+      .then(function (r) {
+        var locPor = {}, fotoPor = {};
+        r[0].forEach(function (s) { locPor[s.uuid] = s; });
+        r[1].forEach(function (f) { fotoPor[f.clave] = f; });
+        var remotos = (r[2].servicios || []).filter(function (s) {
+          return s.estado !== 'eliminado' && RANURAS.some(function (x) { return urlDe(s, x); });
+        }).sort(function (a, b) { return (folioDe(b) || 0) - (folioDe(a) || 0); });
+        return Promise.all(remotos.map(function (rem) {
+          var loc = locPor[rem.uuid];
+          return Promise.all(RANURAS.map(function (x) {
+            var clave = rem.uuid + ':' + x[1] + ':' + x[2], f = fotoPor[clave], enNube = !!urlDe(rem, x);
+            return legible(f && f.blob).then(function (ok) {
+              return { r: x[0], clave: clave, enNube: enNube, enFicha: !!urlDe(loc, x), hay: !!f, ok: ok,
+                       kb: f && f.blob ? Math.round(f.blob.size / 1024) : 0 };
+            });
+          })).then(function (estados) { return { rem: rem, loc: loc, estados: estados }; });
+        }));
+      })
+      .then(function (filas) {
+        FOTOS = filas;
+        var mal = 0;
+        var tbody = document.querySelector('#fotosTabla tbody');
+        tbody.innerHTML = filas.map(function (fi, i) {
+          var falla = fi.estados.some(function (e) { return e.enNube && !e.ok; });
+          if (falla) mal++;
+          return '<tr><td class="dato">' + (folioDe(fi.rem) || '?') + '</td><td>' + String(fi.rem.nombre || '').slice(0, 18) + '</td>' +
+            '<td class="dato">' + fi.estados.map(function (e) {
+              if (!e.enNube && !e.hay) return e.r + ' —';
+              var txt = e.r + ' ' + (e.ok ? '✔' : '✘');
+              var nota = !e.enNube ? ' (solo aquí)' : !e.hay ? ' (no bajó)' : !e.ok ? ' (dañada)' : '';
+              if (!e.enFicha && e.enNube) nota += ' (ficha sin URL)';
+              return '<span class="' + (e.ok ? 'ok' : 'mal') + '">' + txt + '</span><small>' + nota + '</small>';
+            }).join(' · ') + '<div class="dato" id="fotoMsg' + i + '"></div></td>' +
+            '<td>' + (falla ? '<button class="btn" style="margin:0;padding:8px" data-reparar="' + i + '">Reparar</button>' : '') + '</td></tr>';
+        }).join('');
+        document.getElementById('fotosCaja').style.display = 'block';
+        res.innerHTML = '<b>Fotos:</b> ' + filas.length + ' informes con fotos en la nube · ' +
+          (mal ? '<span class="mal">' + mal + ' con fotos que no se ven aquí.</span>' : '<span class="ok">todas se ven aquí ✔</span>');
+        boton.disabled = false; boton.textContent = 'Revisar fotos otra vez';
+      })
+      .catch(function (e) { res.innerHTML = '❌ ' + e.message; boton.disabled = false; boton.textContent = 'Revisar fotos'; });
+  };
+
+  /* Reparar un informe: la ficha toma las URLs de la nube, se borran las fotos
+   * locales dañadas y se bajan otra vez. Cada foto dice si llegó o el error
+   * exacto que devolvió Google. */
+  document.getElementById('fotosTabla').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-reparar]'); if (!b) return;
+    var i = Number(b.dataset.reparar), fi = FOTOS[i], msg = document.getElementById('fotoMsg' + i), db, lineas = [];
+    b.disabled = true; b.textContent = '…';
+    abrirDB().then(function (d) {
+      db = d;
+      if (!fi.loc) return;
+      var loc = fi.loc;
+      if (!loc.fotoPerfilUrl && fi.rem.fotoPerfilUrl) loc.fotoPerfilUrl = fi.rem.fotoPerfilUrl;
+      loc.evidenciasUrls = loc.evidenciasUrls || [];
+      (fi.rem.evidenciasUrls || []).forEach(function (u, k) { if (u && !loc.evidenciasUrls[k]) loc.evidenciasUrls[k] = u; });
+      return guardarServicio(db, loc);
+    }).then(function () {
+      return fi.estados.filter(function (e) { return e.enNube && !e.ok; }).reduce(function (p, e) {
+        var x = RANURAS.filter(function (r) { return r[0] === e.r; })[0], url = urlDe(fi.rem, x), id = idDeUrl(url);
+        return p.then(function () {
+          if (!id) { lineas.push(e.r + ': la URL de la nube no trae id (' + url.slice(0, 50) + ')'); return; }
+          return ponerEnStore(db, 'fotos', null, e.clave)
+            .then(function () { return api('foto', { id: id }); })
+            .then(function (j) {
+              if (!j || !j.base64) throw new Error('la nube respondió sin la foto');
+              var blob = base64ABlob(j.base64, j.mime);
+              return ponerEnStore(db, 'fotos', { clave: e.clave, blob: blob, subida: true, url: url })
+                .then(function () { lineas.push('<span class="ok">' + e.r + ': bajó (' + Math.round(blob.size / 1024) + ' KB)</span>'); });
+            })
+            .catch(function (er) { lineas.push('<span class="mal">' + e.r + ': ' + er.message + '</span>'); });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      msg.innerHTML = lineas.join('<br>');
+      b.textContent = 'Hecho';
+    }).catch(function (er) { msg.innerHTML = '<span class="mal">' + er.message + '</span>'; b.disabled = false; b.textContent = 'Reparar'; });
+  });
 
   /* Sobrescribe con la versión de la nube SOLO los registros que difieren y que
    * no tengan cambios locales sin subir (esos se respetan: son trabajo tuyo que

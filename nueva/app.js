@@ -1559,6 +1559,7 @@
       '<div class="acciones"><button type="button" class="btn-tinta" id="aj-guardar">Guardar y sincronizar</button>' +
       '<button type="button" class="btn-borde" id="aj-rehacer">Traer todo de nuevo desde la nube</button>' +
       '<button type="button" class="btn-borde" id="aj-respaldo">Descargar respaldo .json</button>' +
+      '<a class="btn-borde" href="../diagnostico.html" style="text-decoration:none">Diagnóstico (datos y fotos)</a>' +
       '<a class="btn-borde" href="../clasica.html" style="text-decoration:none">App clásica (respaldo)</a></div>' +
       '<h2 style="margin-top:28px">Consecutivo</h2><p class="sub" id="aj-cons"></p>');
     var ult = ultimoExistente(), pend = BORRADOS.length;
