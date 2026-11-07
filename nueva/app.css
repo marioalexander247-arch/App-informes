@@ -21,6 +21,9 @@
 
 /* Barrido circular del tema (receta de Mario): sin el fundido por defecto */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* Reversa (a claro): la foto oscura va encima y se cierra hacia el botón */
+.tema-reversa::view-transition-old(root) { z-index: 2; }
+.tema-reversa::view-transition-new(root) { z-index: 1; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -446,6 +449,8 @@ body.encogido .app { transform: scale(.94); border-radius: 22px; overflow: hidde
   will-change: transform, opacity; transform-origin: center;
 }
 .rueda-op.sel { font-weight: 700; }
+/* Día que no existe en el mes elegido (31 de febrero): se ve, pero no se elige */
+.rueda-op.off { color: var(--mut); opacity: .35 !important; font-weight: 500; }
 .rueda-ancha .rueda-op { justify-content: flex-start; padding-left: 18px; }
 
 /* ---------- cámara con guía ---------- */

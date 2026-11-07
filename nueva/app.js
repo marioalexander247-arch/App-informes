@@ -444,13 +444,15 @@
 
   // ------------------------------------------------- selectores de rueda
   var ALTO = 44;
-  function crearRueda(ops, idx) {
+  /* aviso(quieta): se llama al cambiar la opción central (quieta = false) y al
+   * detenerse la rueda (quieta = true). */
+  function crearRueda(ops, idx, aviso) {
     var el = document.createElement('div');
     el.className = 'rueda';
     el.innerHTML = '<div class="rueda-pad"></div>' + ops.map(function (o, i) {
       return '<button type="button" class="rueda-op" data-i="' + i + '">' + esc(o.t) + '</button>';
     }).join('') + '<div class="rueda-pad"></div>';
-    var bs = $$('.rueda-op', el), sel = -1, raf = 0;
+    var bs = $$('.rueda-op', el), sel = -1, raf = 0, max = bs.length - 1, espera = 0;
     /* Solo se tocan las ~9 opciones cercanas al centro y solo transform,
      * opacity y un blur pequeño: lo resuelve la GPU, no cuesta en gama media. */
     function pintar() {
@@ -464,18 +466,50 @@
         b.style.filter = d > 0.45 ? 'blur(' + (d * 0.9).toFixed(2) + 'px)' : 'none';
       }
       var n = Math.max(0, Math.min(bs.length - 1, Math.round(c)));
-      if (n !== sel) { if (bs[sel]) bs[sel].classList.remove('sel'); sel = n; bs[n].classList.add('sel'); }
+      if (n !== sel) {
+        if (bs[sel]) bs[sel].classList.remove('sel'); sel = n; bs[n].classList.add('sel');
+        if (aviso) aviso(false); // en movimiento: solo se actualiza lo atenuado
+      }
     }
-    el.addEventListener('scroll', function () { if (!raf) raf = requestAnimationFrame(pintar); }, { passive: true });
+    function valor() { return Math.max(0, Math.min(bs.length - 1, Math.round(el.scrollTop / ALTO))); }
+    function ir(i) { el.scrollTo({ top: i * ALTO, behavior: 'smooth' }); }
+    /* Al detenerse: si quedó en una opción que no existe (31 de febrero),
+     * regresa sola a la última válida, como la rueda de iOS. */
+    function corregir() {
+      // Con un respiro: justo al detenerse (sobre todo en el borde final de la
+      // rueda) el navegador aún termina su ajuste de snap y cancela el
+      // desplazamiento; ni un requestAnimationFrame alcanza (31 se quedaba quieto).
+      setTimeout(function () { if (valor() > max) ir(max); }, 80);
+    }
+    function asentar() {
+      clearTimeout(espera);
+      if (valor() > max) { corregir(); return; }
+      if (aviso) aviso(true);
+    }
+    /* Dos señales de "se detuvo": scrollend (donde exista) y un temporizador
+     * de respaldo, porque no todos los navegadores lo emiten siempre. */
+    if ('onscrollend' in window) el.addEventListener('scrollend', asentar);
+    el.addEventListener('scroll', function () {
+      if (!raf) raf = requestAnimationFrame(pintar);
+      clearTimeout(espera); espera = setTimeout(asentar, 180);
+    }, { passive: true });
     el.addEventListener('click', function (e) {
       var b = e.target.closest('.rueda-op');
-      if (b) el.scrollTo({ top: Number(b.dataset.i) * ALTO, behavior: 'smooth' });
+      if (b && Number(b.dataset.i) <= max) ir(Number(b.dataset.i));
     });
     return {
       el: el,
       // Se lee de la posición real, no del último cuadro pintado
-      valor: function () { return Math.max(0, Math.min(bs.length - 1, Math.round(el.scrollTop / ALTO))); },
-      ir: function (i) { el.scrollTo({ top: i * ALTO, behavior: 'smooth' }); },
+      valor: valor,
+      ir: ir,
+      /* Opciones válidas: de 0 a m. Las demás se ven atenuadas y no se eligen. */
+      limite: function (m, ajustar) {
+        if (Math.min(m, bs.length - 1) !== max) {
+          max = Math.min(m, bs.length - 1);
+          bs.forEach(function (b, i) { b.classList.toggle('off', i > max); });
+        }
+        if (ajustar && valor() > max) corregir();
+      },
       iniciar: function () { el.scrollTop = Math.max(0, idx) * ALTO; pintar(); }
     };
   }
@@ -490,13 +524,16 @@
         '<div class="ruedas"></div><div class="acciones"><button type="button" class="btn-tinta" id="sel-listo">Listo</button></div>',
         function () { resolver(elegido); });
       var cont = $('#hoja-cuerpo .ruedas');
-      var ruedas = o.columnas.map(function (c) {
-        var r = crearRueda(c.ops, c.idx);
+      var ruedas = [];
+      var asentada = function (quieta) { if (o.alMover && ruedas.length === o.columnas.length) o.alMover(ruedas, quieta); };
+      ruedas = o.columnas.map(function (c) {
+        var r = crearRueda(c.ops, c.idx, asentada);
         r.el.style.flex = c.flex || 1;
         cont.appendChild(r.el);
         return r;
       });
       ruedas.forEach(function (r) { r.iniciar(); }); // la hoja ya es visible: se coloca al instante
+      asentada(false);
       // Al colocar las ruedas el navegador desplaza la hoja unos píxeles para
       // "mostrar" la opción elegida; arriba del todo, para que se pueda cerrar
       var cuerpo = $('#hoja-cuerpo');
@@ -525,6 +562,12 @@
       : [{ t: 'Sin fecha', borrar: true }];
     abrirSelector({
       titulo: titulos[campo], atajos: atajos,
+      /* Los días que no existen en el mes/año elegidos (29–31) quedan atenuados
+       * mientras giran las ruedas; al detenerse, el día se ajusta si sobra. */
+      alMover: function (r, quieta) {
+        var y = anios[r[2].valor()].v, m = r[1].valor() + 1;
+        r[0].limite(new Date(y, m, 0).getDate() - 1, quieta);
+      },
       columnas: [{ ops: dias, idx: base[2] - 1, flex: 0.8 }, { ops: MESES.map(function (m) { return { t: m }; }), idx: base[1] - 1 }, { ops: anios, idx: base[0] - a0 }]
     }).then(function (r) {
       if (!r || !F) return;
@@ -1716,7 +1759,11 @@
     $('meta[name="theme-color"]').setAttribute('content', t === 'dark' ? '#0D0E10' : '#F6F5F1');
     $('#fab-tema-lbl').textContent = t === 'dark' ? 'Tema día' : 'Tema noche';
   }
-  /* Barrido circular desde el botón (skill tema-oscuro-barrido). */
+  /* Barrido circular de ida y vuelta (skill tema-oscuro-barrido):
+   * a oscuro el círculo se ABRE desde el botón; a claro la foto oscura se
+   * CIERRA de regreso hacia el botón. Al terminar se cancela la animación:
+   * si queda viva, el siguiente cambio pone la app negra de golpe. */
+  var transicionTema = null;
   function cambiarTema(boton) {
     var nuevo = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     var aplicar = function () { aplicarTema(nuevo); };
@@ -1724,12 +1771,26 @@
     var r = boton.getBoundingClientRect();
     var x = r.left + r.width / 2, y = r.top + r.height / 2;
     var radio = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-    document.startViewTransition(aplicar).ready.then(function () {
-      document.documentElement.animate(
-        { clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + radio + 'px at ' + x + 'px ' + y + 'px)'] },
-        { duration: 480, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', pseudoElement: '::view-transition-new(root)' }
+    var html = document.documentElement, reversa = nuevo === 'light';
+    var circulos = ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + radio + 'px at ' + x + 'px ' + y + 'px)'];
+    html.classList.toggle('tema-reversa', reversa);
+    var barrido = null, vt = document.startViewTransition(aplicar);
+    transicionTema = vt;
+    vt.ready.then(function () {
+      barrido = html.animate(
+        { clipPath: reversa ? circulos.slice().reverse() : circulos },
+        {
+          duration: 480,
+          easing: reversa ? 'cubic-bezier(0.8, 0, 0.6, 1)' : 'cubic-bezier(0.4, 0, 0.2, 1)',
+          fill: 'forwards', // sin esto la foto vieja reaparece un cuadro al final
+          pseudoElement: reversa ? '::view-transition-old(root)' : '::view-transition-new(root)'
+        }
       );
-    }).catch(function () {});
+    }).catch(function () {}); // interrumpida: el tema ya quedó aplicado
+    vt.finished.catch(function () {}).then(function () {
+      if (barrido) barrido.cancel(); // ¡obligatorio! (trampa de la app negra)
+      if (transicionTema === vt) html.classList.remove('tema-reversa');
+    });
   }
 
   // -------------------------------------------------------------- menú +
